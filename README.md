@@ -55,7 +55,7 @@ Required repository secrets:
 
 Optional repository variable:
 
-- `AZURE_LOCATION` (defaults to `centralus` when not set)
+- `AZURE_LOCATION` (defaults to **Central US**: `centralus` when not set)
 
 ### Monitoring runs
 
