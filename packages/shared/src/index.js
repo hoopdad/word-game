@@ -1,4 +1,4 @@
-const { apiContractVersion } = require('../contracts');
+const contracts = require('../contracts');
 const { typeMarkers } = require('../types');
 
 function sharedStub() {
@@ -6,7 +6,7 @@ function sharedStub() {
 }
 
 module.exports = {
-  apiContractVersion,
+  ...contracts,
   sharedStub,
   typeMarkers
 };

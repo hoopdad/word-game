@@ -1,7 +1,9 @@
 /** @typedef {{ userId: string, displayName: string }} UserProfile */
 
 const typeMarkers = {
-  userProfile: 'UserProfile'
+  userProfile: 'UserProfile',
+  categoryGenerationSourceRequest: 'CategoryGenerationSourceRequest',
+  categoryGenerationPipelineResult: 'CategoryGenerationPipelineResult'
 };
 
 module.exports = {

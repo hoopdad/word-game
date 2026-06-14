@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "main": "src/index.js",
   "scripts": {
-    "build": "node -e \"console.log('shared build stub')\"",
-    "test": "node -e \"console.log('shared test stub')\"",
-    "lint": "node -e \"console.log('shared lint stub')\""
+    "build": "node ./scripts/build.js",
+    "test": "node --test ./test/*.test.js",
+    "lint": "node ./scripts/lint.js"
   }
 }
