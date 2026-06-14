@@ -1,1 +1,1 @@
-console.log('web app stub started');
+import './main';

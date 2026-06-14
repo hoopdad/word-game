@@ -8,6 +8,18 @@ test('exports required copy and route contracts', () => {
   assert.equal(contracts.API_ROUTES.profile, '/api/v1/profile');
   assert.equal(contracts.UX_COPY.nameTaken, 'that name is taken.');
   assert.equal(contracts.UX_COPY.gameInProgress, 'Game in progress. Please wait.');
+  assert.deepEqual(contracts.PUBLIC_API_ROUTES, ['/api/v1/health']);
+  assert.equal(contracts.PROTECTED_API_ROUTES.includes('/api/v1/profile'), true);
+});
+
+test('exports auth error contracts', () => {
+  assert.equal(contracts.AUTH_ERROR_CODES.invalidIssuer, 'invalid_issuer');
+  assert.equal(contracts.AUTH_ERROR_CODES.missingRequiredScope, 'missing_required_scope');
+  assert.equal(
+    contracts.AUTH_UNAUTHORIZED_RESPONSE_CONTRACT.code.includes(contracts.AUTH_ERROR_CODES.invalidToken),
+    true
+  );
+  assert.equal(contracts.AUTH_UNAUTHORIZED_RESPONSE_CONTRACT.message, 'string');
 });
 
 test('validates profile and category source request contracts', () => {

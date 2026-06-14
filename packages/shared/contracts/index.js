@@ -10,6 +10,35 @@ const API_ROUTES = Object.freeze({
   sseEvents: '/api/v1/events/stream'
 });
 
+const PUBLIC_API_ROUTES = Object.freeze([
+  API_ROUTES.healthVersion
+]);
+
+const PROTECTED_API_ROUTES = Object.freeze([
+  API_ROUTES.profile,
+  API_ROUTES.dashboard,
+  API_ROUTES.categoriesSources,
+  API_ROUTES.gameStart,
+  API_ROUTES.gameActive,
+  API_ROUTES.sseEvents
+]);
+
+const AUTH_ERROR_CODES = Object.freeze({
+  missingAuthorizationHeader: 'missing_authorization_header',
+  invalidAuthorizationHeader: 'invalid_authorization_header',
+  invalidToken: 'invalid_token',
+  invalidIssuer: 'invalid_issuer',
+  invalidAudience: 'invalid_audience',
+  tokenExpired: 'token_expired',
+  tokenNotActive: 'token_not_active',
+  missingRequiredScope: 'missing_required_scope'
+});
+
+const AUTH_UNAUTHORIZED_RESPONSE_CONTRACT = Object.freeze({
+  code: Object.values(AUTH_ERROR_CODES),
+  message: 'string'
+});
+
 const PROFILE_ERROR_CODES = Object.freeze({
   profileNotFound: 'profile_not_found',
   nameTaken: 'name_taken'
@@ -441,6 +470,10 @@ function validateCategoryGenerationPipelineResult(result) {
 module.exports = {
   API_CONTRACT_VERSION,
   API_ROUTES,
+  PUBLIC_API_ROUTES,
+  PROTECTED_API_ROUTES,
+  AUTH_ERROR_CODES,
+  AUTH_UNAUTHORIZED_RESPONSE_CONTRACT,
   PROFILE_ERROR_CODES,
   GAME_ERROR_CODES,
   UX_COPY,

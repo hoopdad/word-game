@@ -1,0 +1,6 @@
+{"timestamp":"2026-06-13T23:48:30.713-04:00","event":"todo-start","todoId":"entra-auth-core","status":"in_progress"}
+{"timestamp":"2026-06-13T23:52:00-04:00","event":"context-read","files":["work/handoffs/architecture.md","work/handoffs/contracts.md","external-user-pattern.md","nfr.yml","docs/runbooks/OPERATOR_RUNBOOK.md",".github/copilot-instructions.md"]}
+{"timestamp":"2026-06-14T00:00:00-04:00","event":"baseline-verify-local","result":"passed"}
+{"timestamp":"2026-06-14T00:06:00-04:00","event":"web-auth-core-implemented","scope":"apps/web","details":["msal-browser integration","sessionStorage cache","public/protected routing","web auth tests","web env example"]}
+{"timestamp":"2026-06-14T00:09:00-04:00","event":"api-auth-core-implemented","scope":["apps/api","packages/shared"],"details":["JWT validation middleware","401 unauthorized handling","issuer/audience/exp/nbf/scope enforcement","api/shared auth tests","api env example"]}
+{"timestamp":"2026-06-14T00:12:00-04:00","event":"post-change-verify-local","result":"passed"}
