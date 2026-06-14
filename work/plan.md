@@ -17,5 +17,12 @@
 - [x] Update pipeline usage docs and runbook references.
 - [ ] Push branch and record PR URL after local verification.
 
+## Milestone: deploy-validate-release
+- [x] Configure GitHub OIDC secrets/variables for Azure deployment.
+- [x] Trigger CD with `location=centralus`.
+- [x] Capture failure diagnostics from workflow logs.
+- [x] Patch infra defaults to keep Central US while disabling optional Foundry/RBAC resources that require extra permissions/sku alignment.
+- [ ] Re-run CD and verify successful infra-first deployment for web/api/agent.
+
 ## Blockers
-- None currently.
+- Awaiting rerun of CD after infra/workflow patch.

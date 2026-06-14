@@ -82,10 +82,28 @@ variable "openai_deployment_name" {
   default     = "chat-default"
 }
 
+variable "openai_deployment_sku" {
+  description = "Azure OpenAI deployment SKU name."
+  type        = string
+  default     = "GlobalStandard"
+}
+
 variable "ai_foundry_project_name" {
   description = "Placeholder AI Foundry project name."
   type        = string
   default     = "wordgame-project"
+}
+
+variable "enable_role_assignments" {
+  description = "Enable role assignment resources that require User Access Administrator or Owner."
+  type        = bool
+  default     = false
+}
+
+variable "enable_foundry_resources" {
+  description = "Enable preview Foundry/OpenAI deployment resources."
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

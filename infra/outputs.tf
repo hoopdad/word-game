@@ -54,5 +54,5 @@ output "openai_account_name" {
 
 output "ai_foundry_project_id" {
   description = "AI Foundry placeholder project resource ID."
-  value       = azapi_resource.ai_foundry_project.id
+  value       = try(azapi_resource.ai_foundry_project[0].id, null)
 }
