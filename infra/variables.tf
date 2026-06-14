@@ -22,6 +22,12 @@ variable "container_port" {
   default     = 8080
 }
 
+variable "placeholder_image" {
+  description = "Public bootstrap image used for initial Container App creation before app images are built."
+  type        = string
+  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+}
+
 variable "acr_sku" {
   description = "Azure Container Registry SKU."
   type        = string
@@ -102,6 +108,12 @@ variable "enable_role_assignments" {
 
 variable "enable_foundry_resources" {
   description = "Enable preview Foundry/OpenAI deployment resources."
+  type        = bool
+  default     = false
+}
+
+variable "enable_openai_resources" {
+  description = "Enable Azure OpenAI account and dependent resources."
   type        = bool
   default     = false
 }

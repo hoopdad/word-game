@@ -139,6 +139,16 @@ jobs:
           az acr login --name "${ACR_LOGIN_SERVER%%.*}"
           docker build -f apps/web/Dockerfile -t "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" .
           docker push "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
+      - name: Configure web registry credentials
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+          ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
+          ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
+          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
       - name: Update web container app
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
@@ -171,6 +181,16 @@ jobs:
           az acr login --name "${ACR_LOGIN_SERVER%%.*}"
           docker build -f apps/api/Dockerfile -t "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" .
           docker push "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
+      - name: Configure api registry credentials
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+          ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
+          ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
+          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
       - name: Update api container app
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
@@ -203,6 +223,16 @@ jobs:
           az acr login --name "${ACR_LOGIN_SERVER%%.*}"
           docker build -f apps/agent/Dockerfile -t "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}" .
           docker push "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
+      - name: Configure agent registry credentials
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+          ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
+          ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
+          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
       - name: Update agent container app
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}

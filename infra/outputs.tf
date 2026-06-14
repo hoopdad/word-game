@@ -49,7 +49,7 @@ output "cosmos_sql_container_name" {
 
 output "openai_account_name" {
   description = "Azure OpenAI account name."
-  value       = azurerm_cognitive_account.openai.name
+  value       = try(azurerm_cognitive_account.openai[0].name, null)
 }
 
 output "ai_foundry_project_id" {
