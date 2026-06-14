@@ -135,9 +135,20 @@ jobs:
         env:
           ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
+          VITE_ENTRA_CLIENT_ID: ${{ vars.VITE_ENTRA_CLIENT_ID }}
+          VITE_ENTRA_AUTHORITY: ${{ vars.VITE_ENTRA_AUTHORITY }}
+          VITE_ENTRA_REDIRECT_URI: ${{ vars.VITE_ENTRA_REDIRECT_URI }}
+          VITE_ENTRA_POST_LOGOUT_REDIRECT_URI: ${{ vars.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI }}
+          VITE_ENTRA_SCOPES: ${{ vars.VITE_ENTRA_SCOPES }}
         run: |
           az acr login --name "${ACR_LOGIN_SERVER%%.*}"
-          docker build -f apps/web/Dockerfile -t "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" .
+          docker build -f apps/web/Dockerfile \
+            --build-arg VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID}" \
+            --build-arg VITE_ENTRA_AUTHORITY="${VITE_ENTRA_AUTHORITY}" \
+            --build-arg VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI}" \
+            --build-arg VITE_ENTRA_POST_LOGOUT_REDIRECT_URI="${VITE_ENTRA_POST_LOGOUT_REDIRECT_URI}" \
+            --build-arg VITE_ENTRA_SCOPES="${VITE_ENTRA_SCOPES}" \
+            -t "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" .
           docker push "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
       - name: Configure web registry credentials
         env:
@@ -197,7 +208,20 @@ jobs:
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
           ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
-        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
+          ENTRA_JWT_ISSUER: ${{ vars.ENTRA_JWT_ISSUER }}
+          ENTRA_JWT_AUDIENCE: ${{ vars.ENTRA_JWT_AUDIENCE }}
+          ENTRA_REQUIRED_SCOPE: ${{ vars.ENTRA_REQUIRED_SCOPE }}
+          ENTRA_JWKS_URI: ${{ vars.ENTRA_JWKS_URI }}
+        run: |
+          az containerapp update \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" \
+            --set-env-vars \
+            ENTRA_JWT_ISSUER="${ENTRA_JWT_ISSUER}" \
+            ENTRA_JWT_AUDIENCE="${ENTRA_JWT_AUDIENCE}" \
+            ENTRA_REQUIRED_SCOPE="${ENTRA_REQUIRED_SCOPE}" \
+            ENTRA_JWKS_URI="${ENTRA_JWKS_URI}"
 
   deploy-agent:
     name: Deploy agent app
