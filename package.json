@@ -1,0 +1,19 @@
+{
+  "name": "word-game",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "install": "echo 'Workspace dependencies are installed via npm install'",
+    "build": "npm --workspaces --if-present run build",
+    "test": "npm --workspaces --if-present run test",
+    "lint": "npm --workspaces --if-present run lint",
+    "start": "npm --workspaces --if-present run start",
+    "start:web": "npm --workspace @word-game/web run start",
+    "start:api": "npm --workspace @word-game/api run start",
+    "start:agent": "npm --workspace @word-game/agent run start"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@word-game/web",
+  "private": true,
+  "version": "0.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "node -e \"console.log('web build stub')\"",
+    "test": "node -e \"console.log('web test stub')\"",
+    "lint": "node -e \"console.log('web lint stub')\"",
+    "start": "node src/index.js"
+  }
+}

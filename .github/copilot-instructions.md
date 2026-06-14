@@ -1,0 +1,32 @@
+ Before repo work, read this file and `docs/runbooks/OPERATOR_RUNBOOK.md`.
+
+ - Use one planner agent and one or more specialized worker agents.
+ - Query open todos first; SQL status is the source of truth.
+ - If no todos exist, create a dependency-aware todo graph that maximizes parallelism.
+ - Dispatch all independent ready todos in parallel; serialize only true dependencies.
+ - Reconcile SQL todo status with agent-reported status before dispatching more work.
+ - Work on a feature branch for file changes. Create a clean one before begining work.
+ - Keep a single active work branch: do not create a new branch while prior code changes are unmerged.
+ - Do not mark work complete while changes are local-only; completion requires a pushed branch and recorded PR URL.
+ - Before starting the next feature, ensure prior work is either merged to `main` or explicitly deferred with an open PR labeled blocked/deferred.
+ - Prefer `feature/*` branch names for all code/config/workflow changes unless the user requests another naming scheme.
+ - Keep repo artifacts in `work/`; use `plan.md` for multi-step work.
+ - Keep sprint critic reports at `work/sprint-review/critic-<timestamp>.md`.
+ - Emit per-task timeline artifacts at `work/timeline/<correlation_id>.jsonl`.
+ - Required quality gates for implementation and critic passes:
+   - Efficiency: prefer fs-events; if polling is required, use adaptive backoff and bounded cleanup.
+   - Persistence: restart-safe state with atomic and checksummed writes, plus replay on startup.
+   - Clarity: `docs/runbooks/OPERATOR_RUNBOOK.md` is canonical and repo artifacts stay under `work/`.
+ - Use `scripts/verify-local.sh` before PRs.
+ - Use `scripts/watch-workflow.sh CI pull_request <branch>` for PR CI.
+ - Use `scripts/watch-workflow.sh CD push main` for post-merge CD.
+ - Update todo status as work moves from `pending` to `in_progress` to `done` or `blocked`.
+ - Sprint-close done criteria:
+   - All sprint todos are `done` in SQL.
+   - All task branches are merged to `main`, or explicitly deferred via an open PR with blocker context.
+   - Code is pushed to a feature branch unless deployment is required; if deployment is required, code is on `main` and the feature branch is deleted.
+   - Local source is updated to latest remote state.
+   - Release gate passes.
+   - Critic confirms all three quality gates pass with no must-fix findings.
+ - At handoff/close, run and record `git branch --show-current`, `git status --short`, and `gh pr status`; block completion if an unmerged work branch exists.
+ - Follow the runbook for the detailed workflow and quality gates.
