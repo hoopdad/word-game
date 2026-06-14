@@ -50,12 +50,22 @@ Local builds do NOT guarantee CI/CD success. CI runs linting, tests, and deploym
 - CI workflow trigger (`.github/workflows/ci.yml`) ignores PRs that change only:
   - `README.md` / `**/README.md`
   - `.github/workflows/**`
-- For PRs where CI does run, test jobs are gated by changed files:
-  - Android job runs only when Android/Gradle paths changed (`app/**`, `core/**`, `feature/**`, `gradle/**`, `*.gradle.kts`, `settings.gradle.kts`, `gradle.properties`).
-  - Python unit tests run only when Python-related files changed (`**/*.py`, `requirements*`, `pyproject.toml`, `setup.py`, `setup.cfg`, `tox.ini`).
+- For PRs where CI does run, jobs are gated by changed files:
+  - Web job: `apps/web/**`
+  - API job: `apps/api/**`
+  - Agent job: `apps/agent/**`
+  - Infra validate job: `infra/**`
+  - Shared/tooling fan-out: `packages/shared/**`, `scripts/**`, `package.json`, `package-lock.json`
 - Operator expectation:
   - README/workflow-only PRs: CI may be skipped by design.
-  - Mixed PRs: workflow can run but individual Android/Python jobs may be skipped if no matching files changed.
+  - Mixed PRs: workflow can run but component jobs may be skipped if no matching files changed.
+
+### Deployment ordering behavior (CD)
+
+- CD workflow (`.github/workflows/cd.yml`) runs on `push` to `main` or manually via `workflow_dispatch`.
+- Infrastructure deploy is the first gate and must succeed before any app service deploy starts.
+- App service deploy jobs (`web`, `api`, `agent`) all depend on `infra-deploy`.
+- Default deployment region is `centralus` unless `AZURE_LOCATION` or manual input overrides it.
 
 ### Post-commit CI/CD verification checklist
 
@@ -113,11 +123,11 @@ done
 
 ### Common failure patterns to investigate
 
-- **Manifest merger errors**: Duplicate activities, permission conflicts (use manifest diff tool)
-- **Lint failures**: Check `build.gradle.kts` and `.ktlintrc` rules
-- **Test failures**: See test output in `--log` or run locally with `./gradlew test`
-- **Build signing errors**: Check GitHub Secrets for signing credentials (CD only)
-- **Deployment errors**: Check environment variables and credentials (CD only)
+- **Node workspace failures**: dependency drift or lockfile mismatch (`npm ci` errors)
+- **Path-filter misses**: expected job skipped because changed file pattern did not match
+- **Terraform failures**: provider init/auth/backend issues in `infra` stage
+- **OIDC auth failures**: missing/misconfigured `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, or federated credential subject mismatch
+- **Container deploy failures**: ACR push errors, `az containerapp update` target name/resource-group mismatch
 
 ### Auth remediation playbook (Android app flow)
 

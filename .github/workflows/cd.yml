@@ -1,0 +1,206 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "infra/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+    inputs:
+      location:
+        description: "Azure region for deployment"
+        required: false
+        default: "centralus"
+      deploy_web:
+        description: "Deploy web service"
+        required: false
+        default: true
+        type: boolean
+      deploy_api:
+        description: "Deploy api service"
+        required: false
+        default: true
+        type: boolean
+      deploy_agent:
+        description: "Deploy agent service"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_LOCATION: ${{ inputs.location || vars.AZURE_LOCATION || 'centralus' }}
+  ARM_USE_OIDC: true
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.filter.outputs.api }}
+      agent: ${{ steps.filter.outputs.agent }}
+      infra: ${{ steps.filter.outputs.infra }}
+      shared: ${{ steps.filter.outputs.shared }}
+      tooling: ${{ steps.filter.outputs.tooling }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+            api:
+              - 'apps/api/**'
+            agent:
+              - 'apps/agent/**'
+            infra:
+              - 'infra/**'
+            shared:
+              - 'packages/shared/**'
+            tooling:
+              - 'scripts/**'
+              - 'package.json'
+              - 'package-lock.json'
+
+  infra-deploy:
+    name: Deploy infrastructure
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.shared == 'true' || github.event_name == 'workflow_dispatch'
+    outputs:
+      resource_group: ${{ steps.tf_outputs.outputs.resource_group }}
+      acr_login_server: ${{ steps.tf_outputs.outputs.acr_login_server }}
+      web_app_name: ${{ steps.tf_outputs.outputs.web_app_name }}
+      api_app_name: ${{ steps.tf_outputs.outputs.api_app_name }}
+      agent_app_name: ${{ steps.tf_outputs.outputs.agent_app_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform init
+        run: terraform -chdir=infra init
+      - name: Terraform validate
+        run: terraform -chdir=infra validate
+      - name: Terraform apply
+        run: terraform -chdir=infra apply -auto-approve -input=false -var="location=${AZURE_LOCATION}"
+      - id: tf_outputs
+        name: Capture infra outputs
+        run: |
+          echo "resource_group=$(terraform -chdir=infra output -raw resource_group_name)" >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=$(terraform -chdir=infra output -raw acr_login_server)" >> "$GITHUB_OUTPUT"
+          echo "web_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.web')" >> "$GITHUB_OUTPUT"
+          echo "api_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.api')" >> "$GITHUB_OUTPUT"
+          echo "agent_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.agent')" >> "$GITHUB_OUTPUT"
+
+  deploy-web:
+    name: Deploy web app
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - infra-deploy
+    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web))
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Ensure Container Apps extension
+        run: az extension add --name containerapp --upgrade
+      - name: Build and push web image
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+          docker build -f apps/web/Dockerfile -t "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" .
+          docker push "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
+      - name: Update web container app
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
+
+  deploy-api:
+    name: Deploy api app
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - infra-deploy
+    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api))
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Ensure Container Apps extension
+        run: az extension add --name containerapp --upgrade
+      - name: Build and push api image
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+          docker build -f apps/api/Dockerfile -t "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" .
+          docker push "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
+      - name: Update api container app
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
+
+  deploy-agent:
+    name: Deploy agent app
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - infra-deploy
+    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent))
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Ensure Container Apps extension
+        run: az extension add --name containerapp --upgrade
+      - name: Build and push agent image
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+          docker build -f apps/agent/Dockerfile -t "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}" .
+          docker push "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
+      - name: Update agent container app
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
+          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"

@@ -56,10 +56,11 @@ Populate at least:
 - `environment`
 - `tags`
 
-No static secrets are committed. Terraform auth should come from Azure CLI or service principal environment variables:
+No static secrets are committed. Terraform auth should come from Azure CLI or OIDC-based service principal federation:
 
 - `az login` (local interactive), or
-- `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
+- `ARM_USE_OIDC=true`
+- `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`
 
 ## Deploy
 

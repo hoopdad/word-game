@@ -9,5 +9,13 @@
 - [x] Record bootstrap timeline artifact at `work/timeline/bootstrap-foundation.jsonl`.
 - [x] Run local coherence checks (`npm install`, `build`, `test`, `lint`, `verify-local`, start-script smoke checks).
 
+## Milestone: ci-cd-pipelines
+- [x] Add GitHub Actions `CI` workflow with practical path filters and staged component jobs (`web`, `api`, `agent`, `infra`).
+- [x] Add GitHub Actions `CD` workflow with infra-first deployment gating and app deploy fan-out.
+- [x] Configure OIDC-based Azure login structure and default deployment region `centralus`.
+- [x] Add container build definitions for deployable `web`, `api`, and `agent` services.
+- [x] Update pipeline usage docs and runbook references.
+- [ ] Push branch and record PR URL after local verification.
+
 ## Blockers
-- Git repository metadata (`.git`) is missing in this working directory, so branch/PR/CI workflow steps are blocked until repository initialization or checkout is restored.
+- None currently.

@@ -160,6 +160,11 @@ resource "azurerm_container_app" "api" {
       image  = "${azurerm_container_registry.acr.login_server}/api:latest"
       cpu    = 0.25
       memory = "0.5Gi"
+
+      env {
+        name  = "PORT"
+        value = tostring(var.container_port)
+      }
     }
   }
 
