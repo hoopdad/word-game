@@ -49,6 +49,7 @@ resource "azurerm_container_registry" "acr" {
 }
 
 resource "azurerm_role_assignment" "acr_pull" {
+  count                = var.enable_role_assignments ? 1 : 0
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
@@ -89,6 +90,7 @@ resource "azurerm_cosmosdb_sql_container" "events" {
 }
 
 resource "azurerm_role_assignment" "cosmos_reader" {
+  count                = var.enable_role_assignments ? 1 : 0
   scope                = azurerm_cosmosdb_account.cosmos.id
   role_definition_name = "Cosmos DB Account Reader Role"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
@@ -220,13 +222,15 @@ resource "azurerm_cognitive_account" "openai" {
 }
 
 resource "azurerm_role_assignment" "openai_user" {
+  count                = var.enable_role_assignments ? 1 : 0
   scope                = azurerm_cognitive_account.openai.id
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
 }
 
 resource "azapi_resource" "ai_foundry_project" {
-  type      = "Microsoft.CognitiveServices/accounts/projects@2024-10-01"
+  count     = var.enable_foundry_resources ? 1 : 0
+  type      = "Microsoft.CognitiveServices/accounts/projects@2025-06-01"
   name      = local.ai_project_suffix
   parent_id = azurerm_cognitive_account.openai.id
   location  = var.location
@@ -240,14 +244,15 @@ resource "azapi_resource" "ai_foundry_project" {
 }
 
 resource "azapi_resource" "openai_deployment_placeholder" {
-  type      = "Microsoft.CognitiveServices/accounts/deployments@2024-10-01"
+  count     = var.enable_foundry_resources ? 1 : 0
+  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-06-01"
   name      = var.openai_deployment_name
   parent_id = azurerm_cognitive_account.openai.id
 
   schema_validation_enabled = false
   body = jsonencode({
     sku = {
-      name = "Standard"
+      name = var.openai_deployment_sku
     }
     properties = {
       model = {
