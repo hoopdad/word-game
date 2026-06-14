@@ -44,7 +44,7 @@ resource "azurerm_container_registry" "acr" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = var.location
   sku                 = var.acr_sku
-  admin_enabled       = false
+  admin_enabled       = true
   tags                = var.tags
 }
 
@@ -108,18 +108,13 @@ resource "azurerm_container_app" "web" {
     identity_ids = [azurerm_user_assigned_identity.workload.id]
   }
 
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = azurerm_user_assigned_identity.workload.id
-  }
-
   template {
     min_replicas = 1
     max_replicas = 1
 
     container {
       name   = "web"
-      image  = "${azurerm_container_registry.acr.login_server}/web:latest"
+      image  = var.placeholder_image
       cpu    = 0.25
       memory = "0.5Gi"
     }
@@ -148,18 +143,13 @@ resource "azurerm_container_app" "api" {
     identity_ids = [azurerm_user_assigned_identity.workload.id]
   }
 
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = azurerm_user_assigned_identity.workload.id
-  }
-
   template {
     min_replicas = 1
     max_replicas = 1
 
     container {
       name   = "api"
-      image  = "${azurerm_container_registry.acr.login_server}/api:latest"
+      image  = var.placeholder_image
       cpu    = 0.25
       memory = "0.5Gi"
 
@@ -193,18 +183,13 @@ resource "azurerm_container_app" "agent" {
     identity_ids = [azurerm_user_assigned_identity.workload.id]
   }
 
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = azurerm_user_assigned_identity.workload.id
-  }
-
   template {
     min_replicas = 1
     max_replicas = 1
 
     container {
       name   = "agent"
-      image  = "${azurerm_container_registry.acr.login_server}/agent:latest"
+      image  = var.placeholder_image
       cpu    = 0.25
       memory = "0.5Gi"
     }
@@ -212,6 +197,7 @@ resource "azurerm_container_app" "agent" {
 }
 
 resource "azurerm_cognitive_account" "openai" {
+  count                 = var.enable_openai_resources ? 1 : 0
   name                  = local.openai_account_name
   location              = var.location
   resource_group_name   = azurerm_resource_group.rg.name
@@ -222,17 +208,17 @@ resource "azurerm_cognitive_account" "openai" {
 }
 
 resource "azurerm_role_assignment" "openai_user" {
-  count                = var.enable_role_assignments ? 1 : 0
-  scope                = azurerm_cognitive_account.openai.id
+  count                = var.enable_role_assignments && var.enable_openai_resources ? 1 : 0
+  scope                = azurerm_cognitive_account.openai[0].id
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
 }
 
 resource "azapi_resource" "ai_foundry_project" {
-  count     = var.enable_foundry_resources ? 1 : 0
+  count     = var.enable_foundry_resources && var.enable_openai_resources ? 1 : 0
   type      = "Microsoft.CognitiveServices/accounts/projects@2025-06-01"
   name      = local.ai_project_suffix
-  parent_id = azurerm_cognitive_account.openai.id
+  parent_id = azurerm_cognitive_account.openai[0].id
   location  = var.location
 
   schema_validation_enabled = false
@@ -244,10 +230,10 @@ resource "azapi_resource" "ai_foundry_project" {
 }
 
 resource "azapi_resource" "openai_deployment_placeholder" {
-  count     = var.enable_foundry_resources ? 1 : 0
+  count     = var.enable_foundry_resources && var.enable_openai_resources ? 1 : 0
   type      = "Microsoft.CognitiveServices/accounts/deployments@2025-06-01"
   name      = var.openai_deployment_name
-  parent_id = azurerm_cognitive_account.openai.id
+  parent_id = azurerm_cognitive_account.openai[0].id
 
   schema_validation_enabled = false
   body = jsonencode({

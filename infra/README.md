@@ -10,14 +10,14 @@ This directory contains Terraform IaC for the baseline Azure platform used by th
   - `web`
   - `api`
   - `agent`
-- Azure Container Registry (ACR)
+- Azure Container Registry (ACR, admin enabled for bootstrap deploy flow)
 - User-assigned managed identity
 - Optional RBAC scaffolding (disabled by default):
   - `AcrPull` for the managed identity on ACR
   - `Cosmos DB Account Reader Role` for the managed identity on Cosmos DB account
   - `Cognitive Services OpenAI User` for the managed identity on OpenAI account
 - Cosmos DB account + SQL database + SQL container placeholders
-- Azure OpenAI account (`azurerm_cognitive_account`)
+- Optional Azure OpenAI account (`azurerm_cognitive_account`, disabled by default)
 - Optional Azure AI Foundry project/deployment placeholders (`azapi_resource`, disabled by default)
 
 ## Regional defaults and overrides
@@ -57,6 +57,7 @@ Populate at least:
 - `tags`
 - `enable_role_assignments` (`false` by default; set `true` only with User Access Administrator/Owner)
 - `enable_foundry_resources` (`false` by default; set `true` after confirming supported API/model SKU in your region)
+- `enable_openai_resources` (`false` by default; set `true` only when AOAI is required and available)
 
 No static secrets are committed. Terraform auth should come from Azure CLI or OIDC-based service principal federation:
 

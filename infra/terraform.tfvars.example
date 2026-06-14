@@ -3,6 +3,7 @@ environment  = "dev"
 location     = "centralus"
 acr_sku      = "Basic"
 container_port = 8080
+placeholder_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 
 cosmos_database_name      = "wordgame-db"
 cosmos_container_name     = "game-events"
@@ -16,6 +17,7 @@ openai_model_version   = "2024-07-18"
 ai_foundry_project_name = "wordgame-project"
 enable_role_assignments = false
 enable_foundry_resources = false
+enable_openai_resources = false
 
 tags = {
   workload = "word-game"
