@@ -22,7 +22,7 @@ This directory contains Terraform IaC for the baseline Azure platform used by th
 
 ## Regional defaults and overrides
 
-The default (and required baseline) deployment region is **`centralus`** for ACA, Cosmos DB, Azure OpenAI/Foundry, and other regional services via:
+The default (and required baseline) deployment region is **Central US (`centralus`)** for ACA, Cosmos DB, Azure OpenAI/Foundry, and other regional services via:
 
 - `variable "location"` default in `variables.tf`
 - `terraform.tfvars.example`
