@@ -1,0 +1,21 @@
+name_prefix  = "wordgame"
+environment  = "dev"
+location     = "centralus"
+acr_sku      = "Basic"
+container_port = 8080
+
+cosmos_database_name      = "wordgame-db"
+cosmos_container_name     = "game-events"
+cosmos_partition_key_path = "/gameId"
+
+openai_sku_name        = "S0"
+openai_deployment_name = "chat-default"
+openai_model_name      = "gpt-4o-mini"
+openai_model_version   = "2024-07-18"
+ai_foundry_project_name = "wordgame-project"
+
+tags = {
+  workload = "word-game"
+  managed  = "terraform"
+  env      = "dev"
+}
