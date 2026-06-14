@@ -22,7 +22,8 @@
 - [x] Trigger CD with `location=centralus`.
 - [x] Capture failure diagnostics from workflow logs.
 - [x] Patch infra defaults to keep Central US while disabling optional Foundry/RBAC resources that require extra permissions/sku alignment.
-- [ ] Re-run CD and verify successful infra-first deployment for web/api/agent.
+- [x] Re-run CD and verify successful infra-first deployment for web/api/agent.
+- [x] Smoke-test deployed endpoints (`web` HTML and `api /api/v1/health`).
 
 ## Blockers
-- Awaiting rerun of CD after infra/workflow patch.
+- Full Entra External ID end-user flow hardening (dedicated external app registrations/user flows/scopes) remains to be finalized.
