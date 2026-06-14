@@ -10,3 +10,8 @@
 {"ts": "2026-06-14T04:19:08.785419+00:00", "event": "cd_push_main", "status": "failure", "run_id": 27488070930, "details": "Push-triggered CD failed at azure/login before terraform due to missing OIDC secrets"}
 {"ts": "2026-06-14T04:19:08.785436+00:00", "event": "cd_workflow_dispatch", "status": "failure", "run_id": 27488094547, "details": "Manual CD dispatch with location=centralus failed at azure/login due to missing AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID"}
 {"ts": "2026-06-14T04:19:08.785437+00:00", "event": "user_flow_validation", "status": "blocked", "details": "Azure deployment unavailable; only local automated lint/test/build and unit route/auth checks could be verified"}
+{"ts": "2026-06-14T12:29:00Z", "event": "oidc_bootstrap", "status": "success", "details": "Configured Azure OIDC app + GitHub AZURE_* secrets and AZURE_LOCATION=centralus"}
+{"ts": "2026-06-14T13:28:55Z", "event": "cd_workflow_dispatch", "status": "success", "run_id": 27500245475, "details": "Infra-first CD succeeded in centralus; web/api/agent deploy jobs succeeded"}
+{"ts": "2026-06-14T13:54:48Z", "event": "api_smoke", "status": "success", "details": "GET /api/v1/health returned 200 from deployed API container app"}
+{"ts": "2026-06-14T13:58:30Z", "event": "cd_workflow_dispatch", "status": "success", "run_id": 27500876142, "details": "CD rerun from main head succeeded after Entra runtime injection updates"}
+{"ts": "2026-06-14T13:58:31Z", "event": "release_gate", "status": "partial", "details": "Centralus deployment and health checks passed; full end-user Entra sign-in flow still requires dedicated app registration/user-flow configuration hardening"}
