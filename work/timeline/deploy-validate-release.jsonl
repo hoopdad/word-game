@@ -1,3 +1,9 @@
 {"ts": "2026-06-14T04:15:39.803585+00:00", "event": "start", "todo": "deploy-validate-release", "status": "in_progress"}
 {"ts": "2026-06-14T04:15:58.920596+00:00", "event": "branch_topology", "details": "Pushed origin/main from current feature HEAD and set default branch to main"}
 {"ts": "2026-06-14T04:16:11.496173+00:00", "event": "docs_update", "details": "Updated README and infra README to explicitly state Central US (centralus) defaults"}
+{"ts": "2026-06-14T04:17:51.328149+00:00", "event": "local_verify", "status": "success", "details": "scripts/verify-local.sh passed (lint,test,build)"}
+{"ts": "2026-06-14T04:17:51.328166+00:00", "event": "pr_created", "status": "success", "details": "Opened PR #1 feature/multiplayer-word-game-foundation -> main"}
+{"ts": "2026-06-14T04:17:51.328168+00:00", "event": "ci_check", "status": "success", "details": "CI run 27488058026 completed success for pull_request on feature branch"}
+{"ts": "2026-06-14T04:17:51.328169+00:00", "event": "pr_merged", "status": "success", "details": "PR #1 merged to main via squash"}
+{"ts": "2026-06-14T04:17:51.328171+00:00", "event": "cd_check", "status": "failure", "details": "CD run 27488070930 failed at azure/login due to missing ARM_CLIENT_ID/ARM_TENANT_ID/ARM_SUBSCRIPTION_ID"}
+{"ts": "2026-06-14T04:17:51.328172+00:00", "event": "release_gate", "status": "blocked", "details": "Azure OIDC secrets/environments not configured; deployment/user-flow validation in Azure blocked"}
