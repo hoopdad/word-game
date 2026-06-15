@@ -27,6 +27,7 @@ This directory contains Terraform IaC for the baseline Azure platform used by th
 ## Network architecture
 
 All resources except the WAF container app are locked down to private networking.
+This repository's ingress exception is explicit: **only the WAF edge is public** and all application backends remain private.
 
 ```text
 VNet: 10.0.0.0/16
@@ -45,6 +46,13 @@ Internet → ca-waf-wordgame-dev (HTTPS, port 443)
            /*     → ca-web-wordgame-dev (internal FQDN, HTTPS)
 ```
 
+**Ingress controls (Terraform):**
+- `azurerm_container_app.waf.ingress.external_enabled = true` (single public edge).
+- `azurerm_container_app.web.ingress.external_enabled = false`.
+- `azurerm_container_app.api.ingress.external_enabled = false`.
+- `azurerm_container_app.agent` has no public ingress block.
+- `azurerm_container_app_environment.aca_env.internal_load_balancer_enabled = true` keeps backend ingress internal-only.
+
 **NSG enforcement:**
 - `snet-waf` NSG: allows HTTP/HTTPS from Internet; allows AzureLoadBalancer; denies all other inbound.
 - `snet-aca` NSG: allows traffic only from `snet-waf` (port 8080/80/443) and AzureLoadBalancer; denies direct Internet.
@@ -53,6 +61,21 @@ Internet → ca-waf-wordgame-dev (HTTPS, port 443)
 **Private endpoints:** ACR, Cosmos DB, Key Vault, Storage all have private endpoints in `snet-pe` with private DNS zones auto-registered. ACR requires Premium SKU for private endpoint support.
 
 **CI/CD note:** The CD workflow uses `az acr build` (ACR Tasks) instead of `docker push`. ACR Tasks are a trusted Azure service and bypass the private-network restriction (`network_rule_bypass_option = "AzureServices"`). For ACR admin credentials used by `az containerapp registry set`, `admin_enabled = true` is required.
+
+## Red-team and remediation: public ingress exception
+
+**Threat scenario:** A backend app (`web`, `api`, or `agent`) is accidentally exposed publicly and bypasses WAF controls.
+
+**Detection checks:**
+- Terraform review: only `azurerm_container_app.waf` may use `external_enabled = true`.
+- Azure runtime review (`az containerapp show`): verify `ingress.external == true` only for the WAF app.
+- NSG review: `nsg-aca-*` must not allow `Internet` inbound.
+
+**Remediation:**
+1. Set any non-WAF app ingress to `external_enabled = false`.
+2. Keep backend ACA environment internal (`internal_load_balancer_enabled = true`).
+3. Keep WAF as the sole public edge (`waf_env` public access enabled, WAF app external ingress enabled).
+4. Re-run Terraform validation and apply through normal CI/CD gates.
 
 ## Regional defaults and overrides
 

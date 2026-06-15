@@ -9,13 +9,14 @@ resource "azurerm_container_app_environment" "aca_env" {
 }
 
 resource "azurerm_container_app_environment" "waf_env" {
-  name                           = local.waf_env_name
-  location                       = var.location
-  resource_group_name            = azurerm_resource_group.rg.name
-  log_analytics_workspace_id     = azurerm_log_analytics_workspace.aca_logs.id
-  infrastructure_subnet_id       = azurerm_subnet.waf.id
-  internal_load_balancer_enabled = true
-  public_network_access          = "Disabled"
+  name                       = local.waf_env_name
+  location                   = var.location
+  resource_group_name        = azurerm_resource_group.rg.name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.aca_logs.id
+  infrastructure_subnet_id   = azurerm_subnet.waf.id
+  # This is the single approved public ingress edge.
+  internal_load_balancer_enabled = false
+  public_network_access          = "Enabled"
   tags                           = var.tags
 }
 
