@@ -155,7 +155,6 @@ jobs:
             tf_import "azurerm_cosmosdb_account.cosmos" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_NAME}"
             tf_import "azurerm_cosmosdb_sql_database.app" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_NAME}/sqlDatabases/wordgame-db"
             tf_import "azurerm_cosmosdb_sql_container.events" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_NAME}/sqlDatabases/wordgame-db/containers/game-events"
-            tf_import "azurerm_storage_account.artifacts" "${RG_NAME}/${STORAGE_NAME}"
             tf_import "azurerm_key_vault.secrets" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
             tf_import "azurerm_virtual_network.platform" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}"
             tf_import "azurerm_network_security_group.waf" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-waf-${BASE_NAME}"
