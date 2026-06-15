@@ -30,7 +30,7 @@ This file is the single source of truth for requirements previously described in
 7. Before the first round, the game must show a category overview and provide a button to start rounds.
 8. The game must use one category per participating user.
 9. Category-source configuration is editable by all authenticated users.
-10. Category agent output format is a category mapped to key phrases, for example: `{"category": ["key phrase 1", "key phrase 2"]}`.
+10. Category agent canonical output schema is an array of category objects: `[{"category":"x","phrases":["key phrase 1","key phrase 2"]}]`.
 11. Category terms must be office-appropriate and exclude self-harm content, disparaging/derogatory language, and discriminatory/intimidating content.
 
 ## 3) Round, role, and scoring rules
@@ -48,7 +48,7 @@ This file is the single source of truth for requirements previously described in
    - guesser receives 10 points,
    - guesser sees the solved word for 3 seconds,
    - then a new word is shown to clue-givers.
-9. The round timer starts with the new round/category and does not pause or reset during that round.
+9. "New category" means a new round; there is exactly one timer window per round, and the timer does not pause or reset during that round.
 10. If round time expires before a correct guess, 0 points are awarded for that unresolved word and the round ends.
 11. At round end, scores must be persisted atomically (or via idempotent upsert semantics) so retries/restarts do not double-write or lose results.
 12. Persisted game/round records must be restart-safe: a fresh process must be able to replay the latest committed state and continue correctly after interruption.
@@ -83,7 +83,7 @@ This file is the single source of truth for requirements previously described in
 2. Red-team check: confirm backend ingress cannot be reached directly from Internet (NSG + ACA internal environment).
 3. Remediation: if any backend is public, disable external ingress immediately and route traffic only through WAF.
 4. Remediation verification: rerun Terraform validate and standard CI checks before deployment.
-5. WAF violations should return a clear user-facing error response.
+5. WAF violations should return a standardized user-facing error response: HTTP 403 with a stable error code/message and a correlation ID for support/debugging.
 
 ## 6) Delivery, versioning, and automation
 
