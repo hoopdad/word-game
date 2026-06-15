@@ -116,6 +116,13 @@ jobs:
         run: terraform -chdir=infra init
       - name: Terraform validate
         run: terraform -chdir=infra validate
+      - name: Import existing resource group if needed
+        run: |
+          RG_NAME="rg-wordgame-dev"
+          if az group show --name "$RG_NAME" >/dev/null 2>&1; then
+            echo "Resource group $RG_NAME exists, importing into Terraform state..."
+            terraform -chdir=infra import -input=false azurerm_resource_group.rg "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME" || true
+          fi
       - name: Terraform apply
         run: terraform -chdir=infra apply -auto-approve -input=false -var="location=${AZURE_LOCATION}"
       - id: tf_outputs
