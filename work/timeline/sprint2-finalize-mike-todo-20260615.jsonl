@@ -1,0 +1,3 @@
+{"ts":"2026-06-15T09:57:08-04:00","event":"todo_started","todo_id":"sprint2-finalize-mike-todo-decisions"}
+{"ts":"2026-06-15T09:57:44-04:00","event":"requirements_finalized_from_mike_todo","path":"docs/requirements.md"}
+{"ts":"2026-06-15T09:57:59-04:00","event":"mike_todo_cleared","path":"docs/mike-todo.md"}
