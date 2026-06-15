@@ -6,6 +6,8 @@ resource "azurerm_storage_account" "artifacts" {
   account_replication_type        = "LRS"
   allow_nested_items_to_be_public = false
   public_network_access_enabled   = false
+  shared_access_key_enabled       = false
+  https_traffic_only_enabled      = true
   min_tls_version                 = "TLS1_2"
   tags                            = var.tags
 }
