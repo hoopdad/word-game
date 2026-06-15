@@ -17,7 +17,7 @@ resource "azurerm_key_vault" "secrets" {
   tenant_id                     = data.azurerm_client_config.current.tenant_id
   sku_name                      = "standard"
   public_network_access_enabled = false
-  purge_protection_enabled      = false
+  purge_protection_enabled      = true
   soft_delete_retention_days    = 7
   rbac_authorization_enabled    = true
   tags                          = var.tags
