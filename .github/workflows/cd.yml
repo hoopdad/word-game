@@ -138,6 +138,7 @@ jobs:
           CA_API_NAME="ca-api-${BASE_NAME}"
           CA_AGENT_NAME="ca-agent-${BASE_NAME}"
           CA_WAF_NAME="ca-waf-${BASE_NAME}"
+          ACA_INTERNAL_ZONE="$(az containerapp env show --name "${CAE_NAME}" --resource-group "${RG_NAME}" --query properties.defaultDomain -o tsv)"
 
           tf_import() {
             local addr="$1"
@@ -187,10 +188,13 @@ jobs:
             tf_import "azurerm_private_dns_zone.cosmos" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.documents.azure.com"
             tf_import "azurerm_private_dns_zone.key_vault" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net"
             tf_import "azurerm_private_dns_zone.blob" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net"
+            tf_import "azurerm_private_dns_zone.aca_internal" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/${ACA_INTERNAL_ZONE}"
             tf_import "azurerm_private_dns_zone_virtual_network_link.acr" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.azurecr.io/virtualNetworkLinks/link-acr-${BASE_NAME}"
             tf_import "azurerm_private_dns_zone_virtual_network_link.cosmos" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.documents.azure.com/virtualNetworkLinks/link-cosmos-${BASE_NAME}"
             tf_import "azurerm_private_dns_zone_virtual_network_link.key_vault" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net/virtualNetworkLinks/link-kv-${BASE_NAME}"
             tf_import "azurerm_private_dns_zone_virtual_network_link.blob" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net/virtualNetworkLinks/link-blob-${BASE_NAME}"
+            tf_import "azurerm_private_dns_zone_virtual_network_link.aca_internal" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/${ACA_INTERNAL_ZONE}/virtualNetworkLinks/link-aca-${BASE_NAME}"
+            tf_import "azurerm_private_dns_a_record.aca_internal_wildcard" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/${ACA_INTERNAL_ZONE}/A/*"
             tf_import "azurerm_private_endpoint.acr" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateEndpoints/pe-acr-${BASE_NAME}"
             tf_import "azurerm_private_endpoint.cosmos" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateEndpoints/pe-cosmos-${BASE_NAME}"
             tf_import "azurerm_private_endpoint.key_vault" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateEndpoints/pe-kv-${BASE_NAME}"
