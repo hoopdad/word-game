@@ -1,19 +1,6 @@
-resource "azurerm_storage_account" "artifacts" {
-  name                            = local.storage_account
-  location                        = var.location
-  resource_group_name             = azurerm_resource_group.rg.name
-  account_tier                    = "Standard"
-  account_replication_type        = "LRS"
-  allow_nested_items_to_be_public = false
-  public_network_access_enabled   = false
-  shared_access_key_enabled       = false
-  https_traffic_only_enabled      = true
-  min_tls_version                 = "TLS1_2"
-  tags                            = var.tags
-
-  provisioner "local-exec" {
-    command = "sleep 5"
-  }
+data "azurerm_storage_account" "artifacts" {
+  name                = local.storage_account
+  resource_group_name = azurerm_resource_group.rg.name
 }
 
 resource "azurerm_key_vault" "secrets" {
@@ -172,7 +159,7 @@ resource "azurerm_private_endpoint" "blob" {
 
   private_service_connection {
     name                           = "psc-blob-${local.base_name}"
-    private_connection_resource_id = azurerm_storage_account.artifacts.id
+    private_connection_resource_id = data.azurerm_storage_account.artifacts.id
     is_manual_connection           = false
     subresource_names              = ["blob"]
   }
