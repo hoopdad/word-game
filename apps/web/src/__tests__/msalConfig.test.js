@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createLoginRequest, createMsalConfig } from '../auth/msalConfig';
 
 describe('msal config', () => {
@@ -11,6 +11,23 @@ describe('msal config', () => {
 
     expect(config.cache.cacheLocation).toBe('sessionStorage');
     expect(config.cache.storeAuthStateInCookie).toBe(false);
+  });
+
+  it('falls back to the browser origin when redirect env vars are missing', () => {
+    vi.stubGlobal('window', {
+      location: { origin: 'https://app.example.com' },
+    });
+
+    try {
+      const config = createMsalConfig({
+        VITE_ENTRA_CLIENT_ID: 'client-id',
+      });
+
+      expect(config.auth.redirectUri).toBe('https://app.example.com/');
+      expect(config.auth.postLogoutRedirectUri).toBe('https://app.example.com/');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('throws when client id is missing', () => {

@@ -43,3 +43,9 @@ a {
 .warning {
   color: #a30000;
 }
+
+.version {
+  font-size: 0.45em;
+  color: #5f6368;
+  vertical-align: middle;
+}

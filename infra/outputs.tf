@@ -13,12 +13,18 @@ output "container_apps_environment_id" {
   value       = azurerm_container_app_environment.aca_env.id
 }
 
+output "waf_container_apps_environment_id" {
+  description = "WAF Container Apps managed environment ID."
+  value       = azurerm_container_app_environment.waf_env.id
+}
+
 output "container_app_names" {
   description = "Placeholder container app names."
   value = {
     web   = azurerm_container_app.web.name
     api   = azurerm_container_app.api.name
     agent = azurerm_container_app.agent.name
+    waf   = azurerm_container_app.waf.name
   }
 }
 
@@ -30,6 +36,16 @@ output "acr_login_server" {
 output "managed_identity_id" {
   description = "User-assigned managed identity resource ID."
   value       = azurerm_user_assigned_identity.workload.id
+}
+
+output "vnet_id" {
+  description = "Standalone virtual network ID."
+  value       = azurerm_virtual_network.platform.id
+}
+
+output "waf_fqdn" {
+  description = "Public WAF hostname."
+  value       = azurerm_container_app.waf.ingress[0].fqdn
 }
 
 output "cosmos_account_name" {

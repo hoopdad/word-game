@@ -1,6 +1,6 @@
 const http = require('http');
+const { version: SERVICE_VERSION } = require('../package.json');
 const {
-  API_CONTRACT_VERSION,
   API_ROUTES,
   AUTH_ERROR_CODES,
   GAME_START_STATUS,
@@ -54,7 +54,7 @@ function createRequestHandler({ authVerifier }) {
 
     if (req.method === 'GET' && pathname === API_ROUTES.healthVersion) {
       const response = validateHealthVersionResponse({
-        version: API_CONTRACT_VERSION,
+        version: SERVICE_VERSION,
         status: 'ok'
       });
       writeJson(res, 200, response);
@@ -124,7 +124,7 @@ function startServer() {
   const config = loadConfig();
   const server = createServer({ config });
   server.listen(config.port, () => {
-    console.log(`api listening on ${config.port}`);
+    console.log(`api v${SERVICE_VERSION} listening on ${config.port}`);
   });
 }
 

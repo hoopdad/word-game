@@ -1,13 +1,16 @@
 import { getActiveAccount, isAuthenticated, login, logout, safeInitializeAuth } from './auth/client';
 import { resolveRoute } from './router';
+import packageJson from '../package.json';
 import './styles.css';
 
 const app = document.querySelector('#app');
+const APP_VERSION = packageJson.version;
 
 function renderLanding(blocked = false) {
+  document.title = `Word Game v${APP_VERSION}`;
   app.innerHTML = `
     <main>
-      <h1>Word Game</h1>
+      <h1>Word Game <span class="version">v${APP_VERSION}</span></h1>
       <p>Public landing page for external users.</p>
       ${blocked ? '<p class="warning">Please sign in to access the app.</p>' : ''}
       <div class="actions">
@@ -24,10 +27,11 @@ function renderLanding(blocked = false) {
 
 function renderProtected() {
   const account = getActiveAccount();
+  document.title = `Word Game v${APP_VERSION}`;
 
   app.innerHTML = `
     <main>
-      <h1>Word Game App</h1>
+      <h1>Word Game App <span class="version">v${APP_VERSION}</span></h1>
       <p>Authenticated route.</p>
       <p>Signed in as: ${account?.username || 'unknown'}</p>
       <div class="actions">

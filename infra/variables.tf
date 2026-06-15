@@ -16,6 +16,36 @@ variable "location" {
   default     = "centralus"
 }
 
+variable "vnet_address_space" {
+  description = "Address space for the standalone virtual network."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "waf_subnet_address_prefix" {
+  description = "Subnet prefix for the public WAF container app environment."
+  type        = string
+  default     = "10.0.0.0/23"
+}
+
+variable "aca_subnet_address_prefix" {
+  description = "Subnet prefix for the internal Container Apps environment."
+  type        = string
+  default     = "10.0.8.0/21"
+}
+
+variable "private_endpoints_subnet_address_prefix" {
+  description = "Subnet prefix for private endpoints."
+  type        = string
+  default     = "10.0.4.0/24"
+}
+
+variable "management_subnet_address_prefix" {
+  description = "Subnet prefix reserved for future management resources."
+  type        = string
+  default     = "10.0.5.0/24"
+}
+
 variable "container_port" {
   description = "Default application container port."
   type        = number
@@ -31,7 +61,13 @@ variable "placeholder_image" {
 variable "acr_sku" {
   description = "Azure Container Registry SKU."
   type        = string
-  default     = "Basic"
+  default     = "Premium"
+}
+
+variable "waf_image" {
+  description = "Public WAF image that fronts the internal web app."
+  type        = string
+  default     = "owasp/modsecurity-crs:nginx-alpine"
 }
 
 variable "cosmos_offer_type" {
