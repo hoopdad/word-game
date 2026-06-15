@@ -15,6 +15,7 @@ resource "azurerm_container_app_environment" "waf_env" {
   log_analytics_workspace_id     = azurerm_log_analytics_workspace.aca_logs.id
   infrastructure_subnet_id       = azurerm_subnet.waf.id
   internal_load_balancer_enabled = true
+  public_network_access          = "Disabled"
   tags                           = var.tags
 }
 
