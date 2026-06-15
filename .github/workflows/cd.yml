@@ -121,7 +121,7 @@ jobs:
         run: |
           cd infra
           # Clear any cached state to force fresh import
-         rm -rf .terraform/terraform.tfstate.* 2>/dev/null || true
+          rm -rf .terraform/terraform.tfstate.* 2>/dev/null || true
           RG_NAME="rg-wordgame-dev"
           if az group show --name "$RG_NAME" >/dev/null 2>&1; then
             echo "Resource group $RG_NAME exists, importing into Terraform state..."
