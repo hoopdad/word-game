@@ -122,10 +122,59 @@ jobs:
           cd infra
           # Clear any cached state to force fresh import
           rm -rf .terraform/terraform.tfstate.* 2>/dev/null || true
+          SUBSCRIPTION_ID="$ARM_SUBSCRIPTION_ID"
           RG_NAME="rg-wordgame-dev"
+          BASE_NAME="wordgame-dev"
+          VNET_NAME="vnet-${BASE_NAME}"
+          ACR_NAME="acrwordgamedev"
+          COSMOS_NAME="wordgamedevcosmos"
+          KV_NAME="kvwordgamedev"
+          STORAGE_NAME="stwordgamedev"
+          LAW_NAME="law-${BASE_NAME}"
+          IDENTITY_NAME="id-${BASE_NAME}"
+          CAE_NAME="cae-${BASE_NAME}"
+          WAF_CAE_NAME="cae-waf-${BASE_NAME}"
+          CA_WEB_NAME="ca-web-${BASE_NAME}"
+          CA_API_NAME="ca-api-${BASE_NAME}"
+          CA_AGENT_NAME="ca-agent-${BASE_NAME}"
+          CA_WAF_NAME="ca-waf-${BASE_NAME}"
+
+          tf_import() {
+            local addr="$1"
+            local id="$2"
+            terraform import -input=false "$addr" "$id" >/dev/null 2>&1 || true
+          }
+
           if az group show --name "$RG_NAME" >/dev/null 2>&1; then
-            echo "Resource group $RG_NAME exists, importing into Terraform state..."
-            terraform import -input=false "azurerm_resource_group.rg" "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME" || true
+            echo "Resource group $RG_NAME exists, importing known resources into Terraform state..."
+            tf_import "azurerm_resource_group.rg" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}"
+            tf_import "azurerm_log_analytics_workspace.aca_logs" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.OperationalInsights/workspaces/${LAW_NAME}"
+            tf_import "azurerm_user_assigned_identity.workload" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${IDENTITY_NAME}"
+            tf_import "azurerm_container_registry.acr" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.ContainerRegistry/registries/${ACR_NAME}"
+            tf_import "azurerm_cosmosdb_account.cosmos" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_NAME}"
+            tf_import "azurerm_cosmosdb_sql_database.app" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_NAME}/sqlDatabases/wordgame-db"
+            tf_import "azurerm_cosmosdb_sql_container.events" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_NAME}/sqlDatabases/wordgame-db/containers/game-events"
+            tf_import "azurerm_storage_account.artifacts" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
+            tf_import "azurerm_key_vault.secrets" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
+            tf_import "azurerm_virtual_network.platform" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}"
+            tf_import "azurerm_network_security_group.waf" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-waf-${BASE_NAME}"
+            tf_import "azurerm_network_security_group.aca" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-aca-${BASE_NAME}"
+            tf_import "azurerm_network_security_group.private_endpoints" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-pe-${BASE_NAME}"
+            tf_import "azurerm_network_security_group.management" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-mgmt-${BASE_NAME}"
+            tf_import "azurerm_subnet.waf" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-waf-${BASE_NAME}"
+            tf_import "azurerm_subnet.aca" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-aca-${BASE_NAME}"
+            tf_import "azurerm_subnet.private_endpoints" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-private-endpoints-${BASE_NAME}"
+            tf_import "azurerm_subnet.management" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-management-${BASE_NAME}"
+            tf_import "azurerm_subnet_network_security_group_association.waf" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-waf-${BASE_NAME}|/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-waf-${BASE_NAME}"
+            tf_import "azurerm_subnet_network_security_group_association.aca" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-aca-${BASE_NAME}|/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-aca-${BASE_NAME}"
+            tf_import "azurerm_subnet_network_security_group_association.private_endpoints" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-private-endpoints-${BASE_NAME}|/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-pe-${BASE_NAME}"
+            tf_import "azurerm_subnet_network_security_group_association.management" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-management-${BASE_NAME}|/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/nsg-mgmt-${BASE_NAME}"
+            tf_import "azurerm_container_app_environment.aca_env" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.App/managedEnvironments/${CAE_NAME}"
+            tf_import "azurerm_container_app_environment.waf_env" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.App/managedEnvironments/${WAF_CAE_NAME}"
+            tf_import "azurerm_container_app.web" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.App/containerApps/${CA_WEB_NAME}"
+            tf_import "azurerm_container_app.api" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.App/containerApps/${CA_API_NAME}"
+            tf_import "azurerm_container_app.agent" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.App/containerApps/${CA_AGENT_NAME}"
+            tf_import "azurerm_container_app.waf" "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.App/containerApps/${CA_WAF_NAME}"
           fi
           cd ..
       - name: Pre-create NSGs and VNet with subnets to satisfy Azure policy
@@ -168,31 +217,29 @@ jobs:
           done
       - name: Terraform apply
         run: |
-          terraform -chdir=infra apply -auto-approve -input=false -var="location=${AZURE_LOCATION}" 2>&1 | tee /tmp/tf-apply.log || {
-            EXIT_CODE=$?
-            # Check if the failure is due to storage account auth (expected with key-based auth disabled)
-            if grep -q "Key based authentication is not permitted" /tmp/tf-apply.log; then
-              echo "Storage account verification failed (expected with key-based auth disabled). Validating deployment..."
-              # Resource may still be created; verify with terraform show
-              terraform -chdir=infra show -no-color 2>&1 | grep -q "azurerm_storage_account.artifacts" && {
-                echo "Storage account exists in state; continuing..."
-              } || {
-                echo "Storage account creation failed; exiting..."
-                exit $EXIT_CODE
-              }
-            else
-              exit $EXIT_CODE
-            fi
-          }
+          set -o pipefail
+          terraform -chdir=infra apply -auto-approve -input=false -var="location=${AZURE_LOCATION}" 2>&1 | tee /tmp/tf-apply.log
       - id: tf_outputs
         name: Capture infra outputs
         run: |
-          echo "resource_group=$(terraform -chdir=infra output -raw resource_group_name)" >> "$GITHUB_OUTPUT"
-          echo "acr_login_server=$(terraform -chdir=infra output -raw acr_login_server)" >> "$GITHUB_OUTPUT"
-          echo "web_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.web')" >> "$GITHUB_OUTPUT"
-          echo "api_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.api')" >> "$GITHUB_OUTPUT"
-          echo "agent_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.agent')" >> "$GITHUB_OUTPUT"
-          echo "waf_app_name=$(terraform -chdir=infra output -json container_app_names | jq -r '.waf')" >> "$GITHUB_OUTPUT"
+          RESOURCE_GROUP="$(terraform -chdir=infra output -raw resource_group_name)"
+          ACR_LOGIN_SERVER="$(terraform -chdir=infra output -raw acr_login_server)"
+          WEB_APP_NAME="$(terraform -chdir=infra output -json container_app_names | jq -r '.web')"
+          API_APP_NAME="$(terraform -chdir=infra output -json container_app_names | jq -r '.api')"
+          AGENT_APP_NAME="$(terraform -chdir=infra output -json container_app_names | jq -r '.agent')"
+          WAF_APP_NAME="$(terraform -chdir=infra output -json container_app_names | jq -r '.waf')"
+
+          if [[ -z "$ACR_LOGIN_SERVER" || "$ACR_LOGIN_SERVER" == *"::error::"* || "$ACR_LOGIN_SERVER" != *.azurecr.io ]]; then
+            echo "Invalid acr_login_server output: $ACR_LOGIN_SERVER"
+            exit 1
+          fi
+
+          echo "resource_group=${RESOURCE_GROUP}" >> "$GITHUB_OUTPUT"
+          echo "acr_login_server=${ACR_LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
+          echo "web_app_name=${WEB_APP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "api_app_name=${API_APP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "agent_app_name=${AGENT_APP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "waf_app_name=${WAF_APP_NAME}" >> "$GITHUB_OUTPUT"
 
   deploy-web:
     name: Deploy web app
@@ -210,9 +257,24 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Ensure Container Apps extension
         run: az extension add --name containerapp --upgrade
+      - name: Resolve ACR metadata
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
+          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
+            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
+          fi
+          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
+            echo "Invalid ACR name resolved for deploy-web: $ACR_NAME"
+            exit 1
+          fi
+          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
+          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push web image
         env:
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
           VITE_ENTRA_CLIENT_ID: ${{ vars.VITE_ENTRA_CLIENT_ID }}
           VITE_ENTRA_AUTHORITY: ${{ vars.VITE_ENTRA_AUTHORITY }}
@@ -221,7 +283,7 @@ jobs:
           VITE_ENTRA_SCOPES: ${{ vars.VITE_ENTRA_SCOPES }}
         run: |
           az acr build \
-            --registry "${ACR_LOGIN_SERVER%%.*}" \
+            --registry "${ACR_NAME}" \
             --image "web:${IMAGE_TAG}" \
             --file apps/web/Dockerfile \
             --build-arg VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID}" \
@@ -234,9 +296,7 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
         run: |
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
@@ -244,7 +304,6 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
 
@@ -264,13 +323,28 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Ensure Container Apps extension
         run: az extension add --name containerapp --upgrade
+      - name: Resolve ACR metadata
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
+          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
+            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
+          fi
+          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
+            echo "Invalid ACR name resolved for deploy-api: $ACR_NAME"
+            exit 1
+          fi
+          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
+          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push api image
         env:
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           az acr build \
-            --registry "${ACR_LOGIN_SERVER%%.*}" \
+            --registry "${ACR_NAME}" \
             --image "api:${IMAGE_TAG}" \
             --file apps/api/Dockerfile \
             .
@@ -278,9 +352,7 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
         run: |
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
@@ -288,7 +360,6 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
           ENTRA_JWT_ISSUER: ${{ vars.ENTRA_JWT_ISSUER }}
           ENTRA_JWT_AUDIENCE: ${{ vars.ENTRA_JWT_AUDIENCE }}
@@ -321,13 +392,28 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Ensure Container Apps extension
         run: az extension add --name containerapp --upgrade
+      - name: Resolve ACR metadata
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
+          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
+            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
+          fi
+          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
+            echo "Invalid ACR name resolved for deploy-agent: $ACR_NAME"
+            exit 1
+          fi
+          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
+          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push agent image
         env:
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           az acr build \
-            --registry "${ACR_LOGIN_SERVER%%.*}" \
+            --registry "${ACR_NAME}" \
             --image "agent:${IMAGE_TAG}" \
             --file apps/agent/Dockerfile \
             .
@@ -335,9 +421,7 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
         run: |
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
@@ -345,7 +429,6 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
 
@@ -365,13 +448,28 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Ensure Container Apps extension
         run: az extension add --name containerapp --upgrade
+      - name: Resolve ACR metadata
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
+        run: |
+          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
+          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
+            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
+          fi
+          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
+            echo "Invalid ACR name resolved for deploy-waf: $ACR_NAME"
+            exit 1
+          fi
+          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
+          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push WAF image
         env:
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           az acr build \
-            --registry "${ACR_LOGIN_SERVER%%.*}" \
+            --registry "${ACR_NAME}" \
             --image "waf:${IMAGE_TAG}" \
             --file apps/waf/Dockerfile \
             apps/waf
@@ -379,9 +477,7 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
         run: |
-          ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
@@ -389,6 +485,5 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
-          ACR_LOGIN_SERVER: ${{ needs.infra-deploy.outputs.acr_login_server }}
           IMAGE_TAG: ${{ github.sha }}
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
