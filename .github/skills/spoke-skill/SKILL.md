@@ -41,10 +41,19 @@ Use this skill when the user asks to:
 
 Prefer existing `TF_VAR_*` environment variables. Ask only for missing values.
 
+Resolve values in this precedence order:
+
+1. Shell environment `TF_VAR_*`
+2. Repo-root `.env` `TF_VAR_*` values
+3. One-time user prompt for only unresolved required values
+
+Treat values found in repo-root `.env` as authoritative defaults when shell values are not set.
+
 If the user needs starter files, use these bundled assets:
 
 - [templates/cidr.yaml](templates/cidr.yaml)
 - [templates/terraform.tfvars.template](templates/terraform.tfvars.template)
+- [templates/.env.template](templates/.env.template)
 
 Required values:
 
@@ -58,6 +67,12 @@ Required values:
 - `TF_VAR_spoke_short_name`
 - `TF_VAR_spoke_type` as `generic`, `aks`, or `ml`
 - `TF_VAR_cidr_registry_repo` as a GitHub repo URL that contains `cidr.yaml`
+
+CIDR repo variable compatibility:
+
+- Prefer `TF_VAR_cidr_registry_repo`
+- Also accept `TF_VAR_spoke_registry_repo` for backward compatibility
+- If both are set and differ, use `TF_VAR_cidr_registry_repo` and report the conflict
 
 Optional values:
 
@@ -73,15 +88,29 @@ Derived names:
 
 ## Execution Rules
 
-1. Read all available `TF_VAR_*` values first.
-2. Ask once for only the missing required inputs.
-3. Do not hard-code subscription IDs or resource IDs in generated `.tf` files.
-4. Write files only. Do not run `terraform plan` or `terraform apply`.
-5. Keep hub-side changes out of the spoke module; emit them under `_hub-todo/`.
+1. Discover local context before asking anything:
+	- repo-root `.env`
+	- local `mcaps-infra/` directory when present
+	- local `_hub-todo/` directory when present
+2. Read all available `TF_VAR_*` values from shell and repo-root `.env`.
+3. If all required inputs are resolved, ask no questions and continue immediately.
+4. If required inputs are missing, ask once for only the missing values.
+5. Support CIDR repo env var aliases (`TF_VAR_cidr_registry_repo` and `TF_VAR_spoke_registry_repo`).
+6. Do not hard-code subscription IDs or resource IDs in generated `.tf` files.
+7. Write files only. Do not run `terraform plan` or `terraform apply`.
+8. Keep hub-side changes out of the spoke module; emit them under `_hub-todo/`.
+
+### No-Questions Rule
+
+When shell and repo-root `.env` together provide all required values, do not pause for confirmations.
+Proceed directly with CIDR allocation, file generation, and CIDR registry update.
 
 ## CIDR Allocation
 
 The source of truth is `cidr.yaml` in the user-provided GitHub repo.
+
+Local writes are only for the working repo.
+Remote CIDR registry updates are committed back to the registry repo (for example `mikeo-hub`).
 
 Expected top-level keys:
 
@@ -92,11 +121,21 @@ Expected top-level keys:
 
 Allocation behavior:
 
-1. Read `cidr.yaml` with `gh`.
-2. Collect occupied CIDRs from `hub_vnets`, `reserved_blocks`, and `spoke_vnets`.
-3. Find the first available `/24` inside `meta.supernet`.
-4. Present the proposed CIDR and allow the user to override it.
-5. After file generation, append the new spoke entry and commit the updated `cidr.yaml`.
+1. Resolve CIDR registry repo from env alias rules.
+2. Read `cidr.yaml` from the remote GitHub repo with `gh`.
+3. Collect occupied CIDRs from `hub_vnets`, `reserved_blocks`, and `spoke_vnets`.
+4. Find the first available `/24` inside `meta.supernet`.
+5. Present the proposed CIDR and allow the user to override it.
+6. After file generation, append the new spoke entry to `cidr.yaml`.
+7. Commit and push the updated `cidr.yaml` back to the remote registry repo.
+
+Expected remote update sequence:
+
+1. `gh repo clone <registry-repo>` to a temporary local path when needed
+2. modify `cidr.yaml`
+3. `git add cidr.yaml`
+4. `git commit -m "add spoke <name> cidr <cidr>"`
+5. `git push`
 
 If `cidr.yaml` does not exist, stop and start from
 [templates/cidr.yaml](templates/cidr.yaml) before creating anything.
