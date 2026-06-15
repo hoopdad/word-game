@@ -10,6 +10,10 @@ resource "azurerm_storage_account" "artifacts" {
   https_traffic_only_enabled      = true
   min_tls_version                 = "TLS1_2"
   tags                            = var.tags
+
+  provisioner "local-exec" {
+    command = "sleep 5"
+  }
 }
 
 resource "azurerm_key_vault" "secrets" {
