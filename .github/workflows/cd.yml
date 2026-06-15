@@ -117,26 +117,17 @@ jobs:
         run: terraform -chdir=infra init
       - name: Terraform validate
         run: terraform -chdir=infra validate
-      - name: Delete existing resource group if needed (clean slate)
+      - name: Clean Terraform state and import existing resources
         run: |
+          cd infra
+          # Clear any cached state to force fresh import
+         rm -rf .terraform/terraform.tfstate.* 2>/dev/null || true
           RG_NAME="rg-wordgame-dev"
           if az group show --name "$RG_NAME" >/dev/null 2>&1; then
-            echo "Resource group $RG_NAME exists with orphaned resources. Deleting for clean slate..."
-            az group delete --name "$RG_NAME" --yes --no-wait
-            echo "Waiting for deletion (max 5 minutes)..."
-            for i in {1..30}; do
-              if ! az group show --name "$RG_NAME" >/dev/null 2>&1; then
-                echo "Resource group deleted successfully"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "Warning: RG deletion timed out, proceeding anyway"
-              else
-                echo "[$i/30] RG still exists, waiting..."
-                sleep 10
-              fi
-            done
+            echo "Resource group $RG_NAME exists, importing into Terraform state..."
+            terraform import -input=false "azurerm_resource_group.rg" "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME" || true
           fi
+          cd ..
       - name: Terraform apply
         run: terraform -chdir=infra apply -auto-approve -input=false -var="location=${AZURE_LOCATION}"
       - id: tf_outputs
