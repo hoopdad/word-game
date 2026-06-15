@@ -1,3 +1,4 @@
+const { version: AGENT_VERSION } = require('../package.json');
 const { createCategoryAgentService } = require('./services/category-agent-service');
 const { createLocalCategoryAdapter } = require('./adapters/local-category-adapter');
 const { createFoundryCategoryAdapter } = require('./adapters/foundry-category-adapter');
@@ -9,6 +10,7 @@ module.exports = {
 };
 
 if (require.main === module) {
+  console.log(`category-agent v${AGENT_VERSION} starting`);
   const service = createCategoryAgentService({
     adapter: createFoundryCategoryAdapter()
   });
