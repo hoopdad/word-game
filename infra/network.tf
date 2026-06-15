@@ -20,6 +20,8 @@ resource "azurerm_subnet" "waf" {
       actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
+
+  depends_on = [azurerm_network_security_group.waf]
 }
 
 resource "azurerm_subnet" "aca" {
@@ -36,6 +38,8 @@ resource "azurerm_subnet" "aca" {
       actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
+
+  depends_on = [azurerm_network_security_group.aca]
 }
 
 resource "azurerm_subnet" "private_endpoints" {
@@ -44,6 +48,8 @@ resource "azurerm_subnet" "private_endpoints" {
   virtual_network_name              = azurerm_virtual_network.platform.name
   address_prefixes                  = [var.private_endpoints_subnet_address_prefix]
   private_endpoint_network_policies = "Disabled"
+
+  depends_on = [azurerm_network_security_group.private_endpoints]
 }
 
 resource "azurerm_subnet" "management" {
@@ -51,6 +57,8 @@ resource "azurerm_subnet" "management" {
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.platform.name
   address_prefixes     = [var.management_subnet_address_prefix]
+
+  depends_on = [azurerm_network_security_group.management]
 }
 
 resource "azurerm_network_security_group" "waf" {
