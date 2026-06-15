@@ -5,6 +5,7 @@ This is the canonical quality-gates runbook for this repository.
 ## Operating workflow
 
 - Read `.github/copilot-instructions.md` and this runbook before starting repo work.
+- Treat `docs/requirements.md` as the canonical requirements source of truth for sprint requirements.
 - Query open todos first; treat SQL as the source of truth for task state.
 - If no todos exist, create a dependency-aware todo graph that maximizes parallelism.
 - Dispatch independent ready todos in parallel; serialize only true dependency chains.
@@ -33,6 +34,7 @@ This is the canonical quality-gates runbook for this repository.
 ## Clarity gate
 
 - Keep this file (`docs/runbooks/OPERATOR_RUNBOOK.md`) as the canonical operator runbook.
+- Keep `docs/requirements.md` current as the single consolidated requirements reference.
 - Keep instructions in `.github/copilot-instructions.md` concise and durable.
 - Emit per-task timeline artifacts under `work/timeline/<correlation_id>.jsonl`.
 - Each JSONL line should represent a single timestamped event in task execution.
