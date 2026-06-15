@@ -143,7 +143,7 @@ jobs:
           tf_import() {
             local addr="$1"
             local id="$2"
-            terraform import -input=false "$addr" "$id" >/dev/null 2>&1 || true
+            terraform import -input=false -var="location=${AZURE_LOCATION}" "$addr" "$id" >/dev/null 2>&1 || true
           }
 
           if az group show --name "$RG_NAME" >/dev/null 2>&1; then
