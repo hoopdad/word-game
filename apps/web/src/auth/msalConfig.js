@@ -1,6 +1,14 @@
 const DEFAULT_AUTHORITY = 'https://login.microsoftonline.com/common';
 const DEFAULT_REDIRECT_URI = 'http://localhost:5173/';
 
+function getBrowserOriginRedirectUri() {
+  if (typeof window === 'undefined' || !window.location || !window.location.origin) {
+    return DEFAULT_REDIRECT_URI;
+  }
+
+  return `${window.location.origin.replace(/\/$/, '')}/`;
+}
+
 function getRuntimeEnv() {
   const fromImportMeta = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
   const fromProcess = typeof process !== 'undefined' && process.env ? process.env : {};
@@ -17,13 +25,14 @@ function required(value, key) {
 
 export function createMsalConfig(envOverride = {}) {
   const env = { ...getRuntimeEnv(), ...envOverride };
+  const defaultRedirectUri = getBrowserOriginRedirectUri();
 
   return {
     auth: {
       clientId: required(env.VITE_ENTRA_CLIENT_ID, 'VITE_ENTRA_CLIENT_ID'),
       authority: env.VITE_ENTRA_AUTHORITY || DEFAULT_AUTHORITY,
-      redirectUri: env.VITE_ENTRA_REDIRECT_URI || DEFAULT_REDIRECT_URI,
-      postLogoutRedirectUri: env.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI || DEFAULT_REDIRECT_URI,
+      redirectUri: env.VITE_ENTRA_REDIRECT_URI || defaultRedirectUri,
+      postLogoutRedirectUri: env.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI || defaultRedirectUri,
       navigateToLoginRequestUrl: false,
     },
     cache: {

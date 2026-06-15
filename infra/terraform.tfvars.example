@@ -1,23 +1,31 @@
-name_prefix  = "wordgame"
-environment  = "dev"
-location     = "centralus"
-acr_sku      = "Basic"
-container_port = 8080
-placeholder_image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+name_prefix = "wordgame"
+environment = "dev"
+location    = "centralus"
+
+vnet_address_space                        = "10.0.0.0/16"
+waf_subnet_address_prefix                 = "10.0.0.0/23"
+aca_subnet_address_prefix                 = "10.0.8.0/21"
+private_endpoints_subnet_address_prefix   = "10.0.4.0/24"
+management_subnet_address_prefix          = "10.0.5.0/24"
+container_port                            = 8080
+placeholder_image                         = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+acr_sku                                   = "Premium"
+waf_image                                 = "owasp/modsecurity-crs:nginx-alpine"
 
 cosmos_database_name      = "wordgame-db"
 cosmos_container_name     = "game-events"
 cosmos_partition_key_path = "/gameId"
 
-openai_sku_name        = "S0"
-openai_deployment_name = "chat-default"
-openai_deployment_sku  = "GlobalStandard"
-openai_model_name      = "gpt-4o-mini"
-openai_model_version   = "2024-07-18"
+openai_sku_name         = "S0"
+openai_deployment_name  = "chat-default"
+openai_deployment_sku   = "GlobalStandard"
+openai_model_name       = "gpt-4o-mini"
+openai_model_version    = "2024-07-18"
 ai_foundry_project_name = "wordgame-project"
+
 enable_role_assignments = false
 enable_foundry_resources = false
-enable_openai_resources = false
+enable_openai_resources  = false
 
 tags = {
   workload = "word-game"

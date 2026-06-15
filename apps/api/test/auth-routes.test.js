@@ -5,6 +5,7 @@ const { generateKeyPair, exportJWK, SignJWT } = require('jose');
 const { API_ROUTES, AUTH_ERROR_CODES } = require('@word-game/shared');
 const { createAuthVerifier } = require('../src/auth');
 const { createServer } = require('../src/index');
+const { version: apiVersion } = require('../package.json');
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -66,6 +67,7 @@ test('public health route is accessible without auth', async () => {
     const response = await requestJson(apiBaseUrl, API_ROUTES.healthVersion);
     assert.equal(response.statusCode, 200);
     assert.equal(response.body.status, 'ok');
+    assert.equal(response.body.version, apiVersion);
   } finally {
     await closeServer(apiServer);
   }

@@ -27,3 +27,11 @@
 
 ## Blockers
 - Full Entra External ID end-user flow hardening (dedicated external app registrations/user flows/scopes) remains to be finalized.
+
+## Milestone: sprint1a-network-lockdown
+- [ ] Correct ACA subnet delegation actions and NSG rules for WAF/ACA/private-endpoint traffic.
+- [ ] Align Terraform defaults/examples with ACA subnet sizing and ACR admin credential requirements.
+- [ ] Add WAF image sources plus reset/bootstrap helper scripts.
+- [ ] Extend CD workflow with WAF change detection, infra outputs, and WAF deployment.
+- [ ] Run `terraform fmt -recursive`, `terraform validate`, and `scripts/verify-local.sh`.
+- [ ] Commit, push `feature/sprint1`, and record the PR URL.
