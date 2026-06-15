@@ -55,19 +55,19 @@ Required values:
 - `TF_VAR_hub_law_name`
 - `TF_VAR_hub_ampls_name`
 - `TF_VAR_lab_prefix`
-- `spoke_short_name`
-- `spoke_type` as `generic`, `aks`, or `ml`
-- CIDR registry GitHub repo URL
+- `TF_VAR_spoke_short_name`
+- `TF_VAR_spoke_type` as `generic`, `aks`, or `ml`
+- `TF_VAR_cidr_registry_repo` as a GitHub repo URL that contains `cidr.yaml`
 
 Optional values:
 
 - `TF_VAR_spoke_region`
-- custom output directory, otherwise `./{spoke_short_name}/`
+- custom output directory, otherwise `./{TF_VAR_spoke_short_name}/`
 - delegated subnet requirements
 
 Derived names:
 
-- `spoke_prefix = {lab_prefix}-{spoke_short_name}`
+- `spoke_prefix = {lab_prefix}-{TF_VAR_spoke_short_name}`
 - `spoke_rg_name = {spoke_prefix}-rg`
 - `spoke_vnet_name = {spoke_prefix}-vnet`
 
@@ -163,7 +163,7 @@ When required zones are missing from the hub:
 
 ## Files To Generate
 
-Write these under `./{spoke_short_name}/` unless the user overrides the directory:
+Write these under `./{TF_VAR_spoke_short_name}/` unless the user overrides the directory:
 
 - `providers.tf`
 - `variables.tf`
