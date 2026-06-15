@@ -9,6 +9,7 @@ on:
       - "packages/**"
       - "infra/**"
       - "scripts/**"
+      - ".github/workflows/cd.yml"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
