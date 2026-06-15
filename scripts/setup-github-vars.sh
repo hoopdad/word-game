@@ -9,7 +9,7 @@
 #
 # Required:
 #   gh auth login
-#   az login  (only if WEB_APP_URL or AZURE_TENANT_ID are auto-detected)
+#   az login  (only if PUBLIC_APP_URL or AZURE_TENANT_ID are auto-detected)
 #
 # Required inputs (env vars or interactive prompts):
 #   SPA_CLIENT_ID    — Entra app registration client ID for the web SPA
@@ -18,7 +18,7 @@
 # Optional env overrides (auto-detected when possible):
 #   AZURE_TENANT_ID                    — from active az account if not set
 #   AZURE_LOCATION                     — default: centralus
-#   WEB_APP_URL                        — detected from deployed Container App
+#   PUBLIC_APP_URL                     — detected from the deployed WAF Container App
 #   VITE_ENTRA_SCOPES                  — default: openid,profile,email
 #   ENTRA_REQUIRED_SCOPE               — default: access_as_user
 #   NAME_PREFIX                        — Terraform name_prefix var (default: wordgame)
@@ -84,30 +84,30 @@ prompt_var API_CLIENT_ID \
   "Entra app registration client ID for the API (used in ENTRA_JWT_AUDIENCE)"
 
 # ---------------------------------------------------------------------------
-# Resolve web app URL (needed for redirect URIs)
+# Resolve public app URL (needed for redirect URIs)
 # ---------------------------------------------------------------------------
-if [[ -z "${WEB_APP_URL:-}" ]]; then
+if [[ -z "${PUBLIC_APP_URL:-}" ]]; then
   _name_prefix="${NAME_PREFIX:-wordgame}"
   _env="${ENVIRONMENT:-dev}"
   _rg="rg-${_name_prefix}-${_env}"
-  _app="ca-web-${_name_prefix}-${_env}"
+  _app="ca-waf-${_name_prefix}-${_env}"
 
-  info "attempting to auto-detect WEB_APP_URL from az (rg=$_rg app=$_app)"
+  info "attempting to auto-detect PUBLIC_APP_URL from az (rg=$_rg app=$_app)"
   if _fqdn="$(az containerapp show \
       --name "$_app" \
       --resource-group "$_rg" \
       --query "properties.configuration.ingress.fqdn" \
       -o tsv 2>/dev/null)"; then
-    WEB_APP_URL="https://${_fqdn}"
-    info "auto-detected WEB_APP_URL=$WEB_APP_URL"
+    PUBLIC_APP_URL="https://${_fqdn}"
+    info "auto-detected PUBLIC_APP_URL=$PUBLIC_APP_URL"
   else
     info "auto-detect failed (infrastructure may not be deployed yet)"
-    prompt_var WEB_APP_URL \
-      "Web app URL (e.g. https://ca-web-wordgame-dev.<id>.<region>.azurecontainerapps.io)"
+    prompt_var PUBLIC_APP_URL \
+      "Public app URL (e.g. https://ca-waf-wordgame-dev.<id>.<region>.azurecontainerapps.io)"
   fi
 fi
 # Normalize: strip trailing slash
-WEB_APP_URL="${WEB_APP_URL%/}/"
+PUBLIC_APP_URL="${PUBLIC_APP_URL%/}/"
 
 # ---------------------------------------------------------------------------
 # Derive remaining values
@@ -115,8 +115,8 @@ WEB_APP_URL="${WEB_APP_URL%/}/"
 AZURE_LOCATION="${AZURE_LOCATION:-centralus}"
 VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID:-$SPA_CLIENT_ID}"
 VITE_ENTRA_AUTHORITY="${VITE_ENTRA_AUTHORITY:-https://login.microsoftonline.com/${AZURE_TENANT_ID}}"
-VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI:-${WEB_APP_URL}}"
-VITE_ENTRA_POST_LOGOUT_REDIRECT_URI="${VITE_ENTRA_POST_LOGOUT_REDIRECT_URI:-${WEB_APP_URL}}"
+VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI:-${PUBLIC_APP_URL}}"
+VITE_ENTRA_POST_LOGOUT_REDIRECT_URI="${VITE_ENTRA_POST_LOGOUT_REDIRECT_URI:-${PUBLIC_APP_URL}}"
 VITE_ENTRA_SCOPES="${VITE_ENTRA_SCOPES:-openid,profile,email}"
 ENTRA_JWT_ISSUER="${ENTRA_JWT_ISSUER:-https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0}"
 ENTRA_JWT_AUDIENCE="${ENTRA_JWT_AUDIENCE:-api://${API_CLIENT_ID}}"

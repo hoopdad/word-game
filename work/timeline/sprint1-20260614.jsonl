@@ -3,3 +3,9 @@
 {"timestamp":"2026-06-14T20:40:10-04:00","event":"feature_branch_created","branch":"feature/sprint1"}
 {"timestamp":"2026-06-14T20:46:00-04:00","event":"doc_artifacts_written","artifacts":["work/avm-plan.md","work/improvements.md"]}
 {"timestamp":"2026-06-14T20:47:30-04:00","event":"infra_blocked","reason":"ACA recreation, private ACR migration, and runner changes required"}
+{"timestamp":"2026-06-14T21:17:26-04:00","event":"sprint1a_started","files":["sprint1a.md"],"goal":"destructive Azure remediation + bootstrap scripts"}
+{"timestamp":"2026-06-14T21:18:10-04:00","event":"azure_cli_verified","result":"az available and logged in"}
+{"timestamp":"2026-06-14T21:18:30-04:00","event":"github_cli_verified","result":"gh logged in"}
+{"timestamp":"2026-06-14T21:21:00-04:00","event":"bootstrap_scripts_worker_completed","artifacts":["scripts/bootstrap-prereqs.sh","scripts/setup-oidc.sh","scripts/setup-github-vars.sh"]}
+{"timestamp":"2026-06-14T21:34:30-04:00","event":"terraform_validate_passed","artifact":"infra/"}
+{"timestamp":"2026-06-14T21:35:30-04:00","event":"bootstrap_script_updated","artifact":"scripts/setup-github-vars.sh","note":"use public WAF URL"}

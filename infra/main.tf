@@ -2,8 +2,13 @@ locals {
   base_name           = "${var.name_prefix}-${var.environment}"
   normalized_alnum    = join("", regexall("[a-z0-9]", lower(local.base_name)))
   normalized_dns      = join("", regexall("[a-z0-9-]", lower(local.base_name)))
+  vnet_name           = "vnet-${local.base_name}"
+  waf_env_name        = "cae-waf-${local.base_name}"
+  waf_name            = "ca-waf-${local.base_name}"
   cosmos_account      = substr("${local.normalized_alnum}cosmos", 0, 44)
   acr_name            = substr("acr${local.normalized_alnum}", 0, 50)
+  key_vault_name      = substr("kv${local.normalized_alnum}", 0, 24)
+  storage_account     = substr("st${local.normalized_alnum}", 0, 24)
   openai_account_name = substr("aoai-${local.normalized_dns}", 0, 64)
   openai_subdomain    = substr("${local.normalized_dns}openai", 0, 64)
   ai_project_suffix   = substr(join("", regexall("[a-zA-Z0-9-]", "${var.ai_foundry_project_name}-${var.environment}")), 0, 64)
@@ -24,14 +29,6 @@ resource "azurerm_log_analytics_workspace" "aca_logs" {
   tags                = var.tags
 }
 
-resource "azurerm_container_app_environment" "aca_env" {
-  name                       = "cae-${local.base_name}"
-  location                   = var.location
-  resource_group_name        = azurerm_resource_group.rg.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.aca_logs.id
-  tags                       = var.tags
-}
-
 resource "azurerm_user_assigned_identity" "workload" {
   name                = "id-${local.base_name}"
   location            = var.location
@@ -40,12 +37,14 @@ resource "azurerm_user_assigned_identity" "workload" {
 }
 
 resource "azurerm_container_registry" "acr" {
-  name                = local.acr_name
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = var.location
-  sku                 = var.acr_sku
-  admin_enabled       = true
-  tags                = var.tags
+  name                          = local.acr_name
+  resource_group_name           = azurerm_resource_group.rg.name
+  location                      = var.location
+  sku                           = var.acr_sku
+  admin_enabled                 = true
+  public_network_access_enabled = false
+  network_rule_bypass_option    = "AzureServices"
+  tags                          = var.tags
 }
 
 resource "azurerm_role_assignment" "acr_pull" {
@@ -56,12 +55,13 @@ resource "azurerm_role_assignment" "acr_pull" {
 }
 
 resource "azurerm_cosmosdb_account" "cosmos" {
-  name                = local.cosmos_account
-  location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
-  offer_type          = var.cosmos_offer_type
-  kind                = "GlobalDocumentDB"
-  tags                = var.tags
+  name                          = local.cosmos_account
+  location                      = var.location
+  resource_group_name           = azurerm_resource_group.rg.name
+  offer_type                    = var.cosmos_offer_type
+  kind                          = "GlobalDocumentDB"
+  public_network_access_enabled = false
+  tags                          = var.tags
 
   consistency_policy {
     consistency_level = var.cosmos_consistency_level
@@ -103,6 +103,10 @@ resource "azurerm_container_app" "web" {
   revision_mode                = "Single"
   tags                         = var.tags
 
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.workload.id]
@@ -121,7 +125,7 @@ resource "azurerm_container_app" "web" {
   }
 
   ingress {
-    external_enabled = true
+    external_enabled = false
     target_port      = var.container_port
 
     traffic_weight {
@@ -137,6 +141,10 @@ resource "azurerm_container_app" "api" {
   resource_group_name          = azurerm_resource_group.rg.name
   revision_mode                = "Single"
   tags                         = var.tags
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
 
   identity {
     type         = "UserAssigned"
@@ -161,7 +169,7 @@ resource "azurerm_container_app" "api" {
   }
 
   ingress {
-    external_enabled = true
+    external_enabled = false
     target_port      = var.container_port
 
     traffic_weight {
@@ -177,6 +185,10 @@ resource "azurerm_container_app" "agent" {
   resource_group_name          = azurerm_resource_group.rg.name
   revision_mode                = "Single"
   tags                         = var.tags
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
 
   identity {
     type         = "UserAssigned"

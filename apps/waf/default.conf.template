@@ -1,0 +1,41 @@
+server {
+    listen 80;
+    server_name _;
+    modsecurity on;
+    modsecurity_rules_file /etc/modsecurity/include.conf;
+
+    # Route /api/* to the Game API service
+    location ~ ^/api(/|$) {
+        proxy_pass          https://${API_UPSTREAM};
+        proxy_ssl_name      ${API_UPSTREAM};
+        proxy_ssl_verify    on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_set_header    Host              ${API_UPSTREAM};
+        proxy_set_header    X-Real-IP         $$remote_addr;
+        proxy_set_header    X-Forwarded-For   $$proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $$scheme;
+        proxy_read_timeout  30s;
+        proxy_connect_timeout 5s;
+    }
+
+    # WAF health check — bypass ModSecurity inspection
+    location /healthz {
+        modsecurity off;
+        return 200 "ok\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Route all other traffic to the Web SPA
+    location / {
+        proxy_pass          https://${WEB_UPSTREAM};
+        proxy_ssl_name      ${WEB_UPSTREAM};
+        proxy_ssl_verify    on;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_set_header    Host              ${WEB_UPSTREAM};
+        proxy_set_header    X-Real-IP         $$remote_addr;
+        proxy_set_header    X-Forwarded-For   $$proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $$scheme;
+        proxy_read_timeout  30s;
+        proxy_connect_timeout 5s;
+    }
+}

@@ -52,6 +52,13 @@ Run these once in order when setting up a new clone.
 | `scripts/bootstrap-prereqs.sh` | 1 — pre-run | Check tools, sync child repos, `npm install` |
 | `scripts/setup-oidc.sh` | 2 — pre-deploy | Create Azure AD app + OIDC federated creds, set GitHub secrets |
 | `scripts/setup-github-vars.sh` | 3 — post-deploy | Set GitHub variables for Entra auth config after infra is deployed |
+| `scripts/reset-azure-dev.sh --yes` | destructive | Delete `rg-wordgame-dev` so the CI/CD pipeline can recreate it |
+
+Sprint 1a also added phase-specific helpers:
+
+- `scripts/bootstrap-prereqs-pre.sh` — create or reuse the deployment identity and GitHub OIDC secrets before infrastructure deployment
+- `scripts/bootstrap-prereqs-post.sh` — capture the deployed WAF hostname and update GitHub variables afterward
+- `scripts/reset-rg.sh --yes` — delete and recreate `rg-wordgame-dev` with Terraform after the new network shape is committed
 
 ```bash
 # 1. After cloning
@@ -63,7 +70,7 @@ gh auth login
 scripts/setup-oidc.sh
 
 # 3. After infra is deployed by CD, set app-config variables
-#    Provide the Entra app client IDs; WEB_APP_URL is auto-detected when az is logged in.
+#    Provide the Entra app client IDs; PUBLIC_APP_URL is auto-detected from the deployed WAF.
 SPA_CLIENT_ID=<spa-client-id> API_CLIENT_ID=<api-client-id> scripts/setup-github-vars.sh
 ```
 
