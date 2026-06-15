@@ -123,9 +123,19 @@ jobs:
           if az group show --name "$RG_NAME" >/dev/null 2>&1; then
             echo "Resource group $RG_NAME exists with orphaned resources. Deleting for clean slate..."
             az group delete --name "$RG_NAME" --yes --no-wait
-            echo "Waiting for deletion to complete..."
-            az group wait --name "$RG_NAME" --deleted || echo "Deletion wait completed or timed out"
-            sleep 10
+            echo "Waiting for deletion (max 5 minutes)..."
+            for i in {1..30}; do
+              if ! az group show --name "$RG_NAME" >/dev/null 2>&1; then
+                echo "Resource group deleted successfully"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "Warning: RG deletion timed out, proceeding anyway"
+              else
+                echo "[$i/30] RG still exists, waiting..."
+                sleep 10
+              fi
+            done
           fi
       - name: Terraform apply
         run: terraform -chdir=infra apply -auto-approve -input=false -var="location=${AZURE_LOCATION}"
