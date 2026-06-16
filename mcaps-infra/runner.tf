@@ -95,6 +95,29 @@ resource "azurerm_network_interface_security_group_association" "runner" {
   network_security_group_id = azurerm_network_security_group.runner[0].id
 }
 
+resource "azurerm_route_table" "runner" {
+  count               = var.enable_self_hosted_runner ? 1 : 0
+  name                = "rt-runner-${local.spoke_prefix}"
+  location            = var.spoke_region
+  resource_group_name = azurerm_resource_group.spoke.name
+  tags                = local.common_tags
+}
+
+resource "azurerm_route" "runner_default_internet" {
+  count                  = var.enable_self_hosted_runner ? 1 : 0
+  name                   = "default-internet"
+  resource_group_name    = azurerm_resource_group.spoke.name
+  route_table_name       = azurerm_route_table.runner[0].name
+  address_prefix         = "0.0.0.0/0"
+  next_hop_type          = "Internet"
+}
+
+resource "azurerm_subnet_route_table_association" "runner" {
+  count          = var.enable_self_hosted_runner ? 1 : 0
+  subnet_id      = azapi_resource.subnet_workload.id
+  route_table_id  = azurerm_route_table.runner[0].id
+}
+
 resource "azurerm_linux_virtual_machine" "runner" {
   count                           = var.enable_self_hosted_runner ? 1 : 0
   name                            = "vm-runner-${local.spoke_prefix}"
