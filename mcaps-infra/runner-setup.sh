@@ -29,17 +29,25 @@ apt-get update --quiet || true
 echo "Installing Azure CLI..."
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash > /dev/null 2>&1 || echo "Azure CLI installation had issues, continuing..."
 
-echo "Installing Docker..."
-apt-get install -y --quiet docker.io 2>/dev/null || apt-get install -y --quiet docker-ce 2>/dev/null || echo "Docker installation skipped"
+echo "Installing Docker via snap..."
+snap install docker --classic 2>/dev/null || echo "Docker snap installation skipped"
 
-echo "Installing Node.js..."
-apt-get install -y --quiet nodejs npm 2>/dev/null || echo "Node.js installation skipped"
+echo "Installing Node.js via snap..."
+snap install node --classic 2>/dev/null || echo "Node.js snap installation skipped"
 
-echo "Adding runner user to docker group..."
+echo "Creating symlinks for docker and node in /usr/local/bin..."
+ln -sf /snap/bin/docker /usr/local/bin/docker || true
+ln -sf /snap/bin/docker-compose /usr/local/bin/docker-compose || true
+ln -sf /snap/bin/node /usr/local/bin/node || true
+ln -sf /snap/bin/npm /usr/local/bin/npm || true
+
+echo "Creating docker group and adding runner user..."
+groupadd docker 2>/dev/null || true
 usermod -aG docker "$$RUNNER_USER" 2>/dev/null || true
 
-echo "Restarting docker..."
-systemctl restart docker 2>/dev/null || true
+echo "Setting PATH environment for runner user..."
+mkdir -p "$$RUNNER_HOME/.bashrc.d"
+echo 'export PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin:$PATH' >> "$$RUNNER_HOME/.bashrc.d/path"
 
 if [[ -z "$$GH_TOKEN" ]]; then
   echo "ERROR: GH_TOKEN not provided"
