@@ -338,29 +338,6 @@ jobs:
             exit 1
           fi
 
-          runner_online=""
-          # First boot on the always-on VM can take longer while Docker/runner
-          # components finish initializing.
-          for _ in {1..180}; do
-            runner_online="$(curl -fsSL \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" \
-              | jq -r --arg lbl "$runner_label" '.runners[] | select(any(.labels[]?; .name == $lbl)) | select(.status == "online") | .name' \
-              | head -n 1)"
-
-            if [[ -n "$runner_online" ]]; then
-              break
-            fi
-
-            sleep 5
-          done
-
-          if [[ -z "$runner_online" ]]; then
-            echo "Runner with label ${runner_label} did not come online in time"
-            exit 1
-          fi
-
           echo "runner_label=${runner_label}" >> "$GITHUB_OUTPUT"
 
   deploy-apps:
