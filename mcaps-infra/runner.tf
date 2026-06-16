@@ -118,6 +118,38 @@ resource "azurerm_subnet_route_table_association" "runner" {
   route_table_id = azurerm_route_table.runner[0].id
 }
 
+resource "azurerm_public_ip" "runner_nat" {
+  count               = var.enable_self_hosted_runner ? 1 : 0
+  name                = "pip-nat-runner-${local.spoke_prefix}"
+  location            = var.spoke_region
+  resource_group_name = azurerm_resource_group.spoke.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.common_tags
+}
+
+resource "azurerm_nat_gateway" "runner" {
+  count                   = var.enable_self_hosted_runner ? 1 : 0
+  name                    = "nat-runner-${local.spoke_prefix}"
+  location                = var.spoke_region
+  resource_group_name     = azurerm_resource_group.spoke.name
+  sku_name                = "Standard"
+  idle_timeout_in_minutes = 10
+  tags                    = local.common_tags
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "runner" {
+  count                = var.enable_self_hosted_runner ? 1 : 0
+  nat_gateway_id       = azurerm_nat_gateway.runner[0].id
+  public_ip_address_id = azurerm_public_ip.runner_nat[0].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "runner" {
+  count          = var.enable_self_hosted_runner ? 1 : 0
+  subnet_id      = azapi_resource.subnet_workload.id
+  nat_gateway_id = azurerm_nat_gateway.runner[0].id
+}
+
 resource "azurerm_linux_virtual_machine" "runner" {
   count                           = var.enable_self_hosted_runner ? 1 : 0
   name                            = "vm-runner-${local.spoke_prefix}"
@@ -129,9 +161,10 @@ resource "azurerm_linux_virtual_machine" "runner" {
   disable_password_authentication = false
   network_interface_ids           = [azurerm_network_interface.runner[0].id]
   tags                            = local.common_tags
-  user_data = var.github_runner_token != "" ? base64encode(format("%s\nexport GH_TOKEN='%s'\n%s",
+  user_data = var.github_runner_token != "" ? base64encode(format("%s\nexport GH_TOKEN='%s'\nexport RUNNER_LABEL_VALUE='%s'\n%s",
     "#!/bin/bash",
     var.github_runner_token,
+    var.runner_label,
     join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) :
       line == "#!/bin/bash" ? "" : "${line}\n"
     ])

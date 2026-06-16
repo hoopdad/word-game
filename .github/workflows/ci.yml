@@ -4,6 +4,11 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
     paths:
       - "apps/**"
       - "packages/**"
@@ -17,7 +22,9 @@ permissions:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - wordgame-spoke
     outputs:
       web: ${{ steps.filter.outputs.web }}
       api: ${{ steps.filter.outputs.api }}
@@ -48,7 +55,9 @@ jobs:
 
   infra-validate:
     name: Infra validate
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - wordgame-spoke
     needs: detect-changes
     if: needs.detect-changes.outputs.infra == 'true'
     steps:
@@ -63,7 +72,9 @@ jobs:
 
   web-ci:
     name: Web lint/test/build
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - wordgame-spoke
     needs: detect-changes
     if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
     steps:
@@ -79,7 +90,9 @@ jobs:
 
   api-ci:
     name: API lint/test/build
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - wordgame-spoke
     needs: detect-changes
     if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
     steps:
@@ -95,7 +108,9 @@ jobs:
 
   agent-ci:
     name: Agent lint/test/build
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - wordgame-spoke
     needs: detect-changes
     if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
     steps:
@@ -111,7 +126,9 @@ jobs:
 
   shared-ci:
     name: Shared lint/test/build
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - wordgame-spoke
     needs: detect-changes
     if: needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
     steps:

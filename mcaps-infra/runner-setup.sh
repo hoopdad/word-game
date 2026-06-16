@@ -10,7 +10,7 @@ RUNNER_HOME="/home/$${RUNNER_USER}"
 RUNNER_DIR="$${RUNNER_HOME}/actions-runner"
 RUNNER_VERSION="2.327.1"
 RUNNER_NAME="vm-runner-$$(hostname)"
-RUNNER_LABEL="wordgame-spoke"
+RUNNER_LABEL="$${RUNNER_LABEL_VALUE:-wordgame-spoke}"
 GITHUB_REPO="hoopdad/word-game"
 # GH_TOKEN must be provided as environment variable
 LOG_FILE="/var/log/runner-setup.log"
@@ -21,13 +21,28 @@ exec > "$$LOG_FILE" 2>&1
 echo "=== GitHub Actions Runner Setup Starting ==="
 echo "Timestamp: $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Install deployment tools first (Azure CLI, Docker, Node.js, npm)
+# Create runner user first so group and profile setup is reliable
+echo "Creating runner user..."
+id "$$RUNNER_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$$RUNNER_USER" || true
+
+# Install deployment/build tools first
 echo "=== Installing deployment tools ==="
 echo "Updating package manager..."
 apt-get update --quiet || true
 
+echo "Installing base packages..."
+DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet \
+  ca-certificates curl git jq unzip gnupg lsb-release build-essential || true
+
 echo "Installing Azure CLI..."
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash > /dev/null 2>&1 || echo "Azure CLI installation had issues, continuing..."
+
+echo "Installing Terraform..."
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /etc/apt/keyrings/hashicorp.gpg 2>/dev/null || true
+echo "deb [signed-by=/etc/apt/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $$(lsb_release -cs) main" > /etc/apt/sources.list.d/hashicorp.list
+apt-get update --quiet || true
+DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet terraform || true
 
 echo "Installing Docker via snap..."
 snap install docker --classic 2>/dev/null || echo "Docker snap installation skipped"
@@ -54,14 +69,12 @@ if [[ -z "$$GH_TOKEN" ]]; then
   exit 1
 fi
 
-# Create runner user
-echo "Creating runner user..."
-id "$$RUNNER_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$$RUNNER_USER" || true
-
 # Setup directory
 echo "Setting up runner directory..."
 mkdir -p "$$RUNNER_DIR"
 chown -R "$${RUNNER_USER}:$${RUNNER_USER}" "$$RUNNER_DIR"
+echo 'PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin' > "$$RUNNER_DIR/.env"
+chown "$${RUNNER_USER}:$${RUNNER_USER}" "$$RUNNER_DIR/.env"
 cd "$$RUNNER_DIR"
 
 # Download runner
