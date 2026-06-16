@@ -220,12 +220,17 @@ jobs:
       - id: prepare
         name: Register and start ephemeral runner
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_RUNNER_BOOTSTRAP_TOKEN || github.token }}
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           VM_NAME: ${{ needs.infra-deploy.outputs.runner_vm_name }}
           BASE_RUNNER_LABEL: ${{ needs.infra-deploy.outputs.runner_label }}
         run: |
           set -euo pipefail
+
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "Missing GH token for runner registration."
+            exit 1
+          fi
 
           if [[ -z "$VM_NAME" || "$VM_NAME" == "null" ]]; then
             echo "runner VM name output is empty"
