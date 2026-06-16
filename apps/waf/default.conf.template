@@ -1,8 +1,8 @@
 server {
     listen 8080;
     server_name _;
-    modsecurity on;
-    modsecurity_rules_file /etc/modsecurity/include.conf;
+    # modsecurity on/rules_file are set globally by conf.d/modsecurity.conf (OWASP image).
+    # Override per-location only (modsecurity off for healthz).
 
     # Route /api/* to the Game API service
     location ~ ^/api(/|$) {
