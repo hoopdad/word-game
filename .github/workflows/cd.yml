@@ -264,13 +264,11 @@ jobs:
                 sudo useradd --create-home --shell /bin/bash "${RUNNER_USER}"
               fi
 
-              sudo sed -i \
-                -e "s|http://azure.archive.ubuntu.com/ubuntu|https://azure.archive.ubuntu.com/ubuntu|g" \
-                -e "s|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g" \
-                /etc/apt/sources.list
+              if ! command -v docker >/dev/null 2>&1; then
+                curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+                sudo sh /tmp/get-docker.sh
+              fi
 
-              sudo apt-get update -y
-              sudo apt-get install -y curl jq tar docker.io
               sudo systemctl enable --now docker
               sudo usermod -aG docker "${RUNNER_USER}"
 
@@ -287,9 +285,8 @@ jobs:
                   echo "Unsupported architecture: ${ARCH_RAW}"
                   exit 1
                 fi
-
                 sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && curl -fsSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz && tar xzf actions-runner.tar.gz"
-                sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && ./bin/installdependencies.sh"
+                sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && curl -fsSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz && tar xzf actions-runner.tar.gz"
               fi
 
               if [[ -f "${RUNNER_DIR}/runner.pid" ]]; then
