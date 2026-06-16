@@ -78,7 +78,8 @@ jobs:
           z=zipfile.ZipFile('/tmp/terraform.zip')
           z.extractall('/tmp')
           PY
-          sudo install -m 0755 /tmp/terraform /usr/local/bin/terraform
+          chmod +x /tmp/terraform
+          echo "/tmp" >> "$GITHUB_PATH"
           terraform version
       - name: Terraform fmt check
         run: terraform -chdir=mcaps-infra fmt -recursive -check
