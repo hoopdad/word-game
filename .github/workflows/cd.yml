@@ -248,6 +248,17 @@ jobs:
 
           echo "::add-mask::${registration_token}"
 
+          echo "Starting runner VM ${VM_NAME}..."
+          az vm start --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" --no-wait
+          # Poll until running (up to 3 minutes)
+          for _ in {1..36}; do
+            state=$(az vm get-instance-view --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" \
+              --query 'instanceView.statuses[?starts_with(code,`PowerState`)].displayStatus' -o tsv 2>/dev/null || true)
+            echo "VM state: ${state}"
+            if [[ "$state" == "VM running" ]]; then break; fi
+            sleep 5
+          done
+
           az vm run-command invoke \
             --resource-group "$RESOURCE_GROUP" \
             --name "$VM_NAME" \
@@ -498,3 +509,30 @@ jobs:
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
           IMAGE_TAG: ${{ github.sha }}
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
+
+  stop-runner:
+    name: Stop runner VM
+    runs-on: ubuntu-latest
+    needs:
+      - infra-deploy
+      - prepare-runner
+      - deploy-apps
+    if: always() && needs.prepare-runner.result != 'skipped'
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deallocate runner VM
+        env:
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          VM_NAME: ${{ needs.infra-deploy.outputs.runner_vm_name }}
+        run: |
+          if [[ -z "$VM_NAME" || "$VM_NAME" == "null" ]]; then
+            echo "No VM name; skipping deallocate."
+            exit 0
+          fi
+          echo "Deallocating ${VM_NAME}..."
+          az vm deallocate --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" --no-wait
+          echo "Deallocation triggered."
