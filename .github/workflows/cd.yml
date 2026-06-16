@@ -1,11 +1,9 @@
 name: CD
 
 on:
-  pull_request:
+  push:
     branches:
       - main
-    types:
-      - closed
     paths:
       - "apps/**"
       - "packages/**"
@@ -32,7 +30,6 @@ env:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
     outputs:
       web: ${{ steps.filter.outputs.web }}
       api: ${{ steps.filter.outputs.api }}
