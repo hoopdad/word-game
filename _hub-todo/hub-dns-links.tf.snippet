@@ -1,0 +1,68 @@
+locals {
+  spoke_prefix = "mikeo-lab-infra"
+  spoke_vnet_id = "<REPLACE_WITH_SPOKE_VNET_ID>"
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "blob" {
+  name                  = "link-blob-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.blob.core.windows.net"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "kv" {
+  name                  = "link-kv-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.vaultcore.azure.net"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "monitor" {
+  name                  = "link-monitor-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.monitor.azure.com"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "oms" {
+  name                  = "link-oms-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.oms.opinsights.azure.com"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "ods" {
+  name                  = "link-ods-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.ods.opinsights.azure.com"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "agentsvc" {
+  name                  = "link-agentsvc-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.agentsvc.azure-automation.net"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "azurecr" {
+  name                  = "link-azurecr-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.azurecr.io"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "documents" {
+  name                  = "link-documents-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.documents.azure.com"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}

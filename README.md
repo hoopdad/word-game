@@ -38,10 +38,10 @@ GitHub Actions workflows live in `.github/workflows`:
   - `web` (`apps/web/**`)
   - `api` (`apps/api/**`)
   - `agent` (`apps/agent/**`)
-  - `infra` (`infra/**`)
+  - `infra` (`mcaps-infra/**`)
 - `CD` (`cd.yml`) runs on pushes to `main` and supports manual `workflow_dispatch`.
-  - Infra deploy runs first.
-  - App deployments (`web`, `api`, `agent`) depend on successful infra deploy.
+  - Infra deploy runs first (Terraform spoke stack in `mcaps-infra/`, remote azurerm backend).
+  - App deployments (`web`, `api`, `agent`, `waf`) depend on successful infra deploy.
 
 ### Bootstrap scripts
 
@@ -58,7 +58,7 @@ Sprint 1a also added phase-specific helpers:
 
 - `scripts/bootstrap-prereqs-pre.sh` — create or reuse the deployment identity and GitHub OIDC secrets before infrastructure deployment
 - `scripts/bootstrap-prereqs-post.sh` — capture the deployed WAF hostname and update GitHub variables afterward
-- `scripts/reset-rg.sh --yes` — delete and recreate `rg-wordgame-dev` with Terraform after the new network shape is committed
+- `scripts/destroy-old-infra.sh --yes` — tear down the legacy `rg-wordgame-dev` resource group (also runnable via the gated `Destroy legacy infra` workflow)
 
 ```bash
 # 1. After cloning

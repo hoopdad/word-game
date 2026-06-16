@@ -1,7 +1,8 @@
 FROM owasp/modsecurity-crs:nginx-alpine
 
-# Remove the default single-backend proxy template; we use path-based routing.
-RUN rm -f /etc/nginx/templates/default.conf.template 2>/dev/null || true
-
-# Our multi-backend routing template processed by envsubst at startup.
-COPY default.conf.template /etc/nginx/templates/default.conf.template
+# 99-wordgame-config.sh runs last in the entrypoint chain (sort order > 93).
+# It overwrites conf.d/default.conf with our multi-backend routing config
+# using WEB_UPSTREAM and API_UPSTREAM env vars — no interaction with the
+# OWASP template/envsubst pipeline.
+COPY 99-wordgame-config.sh /docker-entrypoint.d/99-wordgame-config.sh
+RUN chmod +x /docker-entrypoint.d/99-wordgame-config.sh
