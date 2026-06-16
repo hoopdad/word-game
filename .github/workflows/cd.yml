@@ -328,7 +328,9 @@ jobs:
           fi
 
           runner_online=""
-          for _ in {1..120}; do
+          # First boot on the always-on VM can take longer while Docker/runner
+          # components finish initializing.
+          for _ in {1..180}; do
             runner_online="$(curl -fsSL \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
