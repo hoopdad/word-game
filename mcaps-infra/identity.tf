@@ -17,6 +17,13 @@ resource "azurerm_role_assignment" "acr_pull" {
   principal_id         = module.uami.principal_id
 }
 
+resource "azurerm_role_assignment" "github_oidc_acr_push" {
+  count                = var.enable_role_assignments ? 1 : 0
+  scope                = module.acr.resource_id
+  role_definition_name = "AcrPush"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_role_assignment" "cosmos_reader" {
   count                = var.enable_role_assignments ? 1 : 0
   scope                = module.cosmos.resource_id

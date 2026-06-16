@@ -65,14 +65,16 @@ and cross-resource access grants land:
 
 | Flag                       | Effect                                                  |
 | -------------------------- | ------------------------------------------------------- |
-| `enable_role_assignments`  | UAMI role grants (AcrPull, Cosmos, OpenAI)              |
+| `enable_role_assignments`  | UAMI role grants (AcrPull, Cosmos, OpenAI) + GitHub OIDC AcrPush on ACR (`az acr build`; push includes pull) |
 | `enable_storage`           | AVM storage account + blob private endpoint             |
 | `enable_openai_resources`  | Azure OpenAI cognitive account                          |
 | `enable_foundry_resources` | AI Foundry project + deployment (azapi)                 |
 
 > ACR has `admin_enabled = true` so CD can authenticate the Container Apps registry
-> with admin credentials. Once `enable_role_assignments = true`, switch CD to
-> UAMI-based `AcrPull` and disable the admin user.
+> with admin credentials. When `enable_role_assignments = true`, Terraform also adds
+> GitHub OIDC `AcrPush` on ACR (used by `az acr build`; this role also allows pull)
+> while keeping existing UAMI-based `AcrPull` behavior unchanged. Disable the admin
+> user once your pipeline fully uses role-based auth.
 
 ## Teardown of the legacy stack
 
