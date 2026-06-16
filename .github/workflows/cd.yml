@@ -42,7 +42,7 @@ on:
 permissions:
   id-token: write
   contents: read
-  actions: write
+  actions: read
 
 env:
   AZURE_LOCATION: ${{ inputs.location || vars.AZURE_LOCATION || 'centralus' }}
