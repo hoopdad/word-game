@@ -34,14 +34,21 @@ else
 fi
 
 echo "Ensuring container ${CONTAINER}..."
-# Use account-key auth (not --auth-mode login) so the bootstrap does not require
-# a data-plane RBAC role on a freshly created account; the azurerm backend also
-# authenticates to state via the access key.
-SA_KEY="$(az storage account keys list --account-name "$SA" --resource-group "$RG" --query '[0].value' --output tsv)"
-az storage container create \
+# Prefer Entra auth; some subscriptions block key-based auth by policy.
+if az storage container create \
   --name "$CONTAINER" \
   --account-name "$SA" \
-  --account-key "$SA_KEY" \
-  --output none
+  --auth-mode login \
+  --output none; then
+  :
+else
+  echo "Entra auth failed; falling back to key auth for container creation..."
+  SA_KEY="$(az storage account keys list --account-name "$SA" --resource-group "$RG" --query '[0].value' --output tsv)"
+  az storage container create \
+    --name "$CONTAINER" \
+    --account-name "$SA" \
+    --account-key "$SA_KEY" \
+    --output none
+fi
 
 echo "Terraform state backend ready: rg=${RG} sa=${SA} container=${CONTAINER}"
