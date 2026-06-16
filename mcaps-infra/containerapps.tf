@@ -9,7 +9,7 @@ module "aca_env" {
   zone_redundant = false
 
   vnet_configuration = {
-    infrastructure_subnet_id = azurerm_subnet.aca.id
+    infrastructure_subnet_id = azapi_resource.subnet_aca.id
     internal                 = true
   }
 
@@ -40,7 +40,7 @@ module "waf_env" {
 
   # Policy requires private-only ingress.
   vnet_configuration = {
-    infrastructure_subnet_id = azurerm_subnet.waf.id
+    infrastructure_subnet_id = azapi_resource.subnet_waf.id
     internal                 = true
   }
 

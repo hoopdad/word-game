@@ -20,7 +20,7 @@ module "storage" {
   private_endpoints = {
     blob = {
       name                          = "pe-blob-${local.spoke_prefix}"
-      subnet_resource_id            = azurerm_subnet.pep.id
+      subnet_resource_id            = azapi_resource.subnet_pep.id
       subresource_name              = "blob"
       private_dns_zone_group_name   = "default"
       private_dns_zone_resource_ids = [local.hub_private_dns_zone_ids["privatelink.blob.core.windows.net"]]

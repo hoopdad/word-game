@@ -32,49 +32,79 @@ resource "azurerm_virtual_network" "spoke" {
   tags                = local.common_tags
 }
 
-resource "azurerm_subnet" "workload" {
-  name                 = "workload-subnet"
-  resource_group_name  = azurerm_resource_group.spoke.name
-  virtual_network_name = azurerm_virtual_network.spoke.name
-  address_prefixes     = [var.workload_subnet_cidr]
-}
+resource "azapi_resource" "subnet_workload" {
+  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name      = "workload-subnet"
+  parent_id = azurerm_virtual_network.spoke.id
 
-resource "azurerm_subnet" "pep" {
-  name                              = "pep-subnet"
-  resource_group_name               = azurerm_resource_group.spoke.name
-  virtual_network_name              = azurerm_virtual_network.spoke.name
-  address_prefixes                  = [var.pep_subnet_cidr]
-  private_endpoint_network_policies = "Disabled"
-}
-
-resource "azurerm_subnet" "aca" {
-  name                 = "aca-subnet"
-  resource_group_name  = azurerm_resource_group.spoke.name
-  virtual_network_name = azurerm_virtual_network.spoke.name
-  address_prefixes     = [var.aca_subnet_cidr]
-
-  delegation {
-    name = "aca-delegation"
-
-    service_delegation {
-      name    = "Microsoft.App/environments"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+  body = {
+    properties = {
+      addressPrefix = var.workload_subnet_cidr
+      networkSecurityGroup = {
+        id = azurerm_network_security_group.workload.id
+      }
     }
   }
 }
 
-resource "azurerm_subnet" "waf" {
-  name                 = "waf-subnet"
-  resource_group_name  = azurerm_resource_group.spoke.name
-  virtual_network_name = azurerm_virtual_network.spoke.name
-  address_prefixes     = [var.waf_subnet_cidr]
+resource "azapi_resource" "subnet_pep" {
+  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name      = "pep-subnet"
+  parent_id = azurerm_virtual_network.spoke.id
 
-  delegation {
-    name = "waf-delegation"
+  body = {
+    properties = {
+      addressPrefix                  = var.pep_subnet_cidr
+      privateEndpointNetworkPolicies = "Disabled"
+      networkSecurityGroup = {
+        id = azurerm_network_security_group.pep.id
+      }
+    }
+  }
+}
 
-    service_delegation {
-      name    = "Microsoft.App/environments"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+resource "azapi_resource" "subnet_aca" {
+  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name      = "aca-subnet"
+  parent_id = azurerm_virtual_network.spoke.id
+
+  body = {
+    properties = {
+      addressPrefix = var.aca_subnet_cidr
+      networkSecurityGroup = {
+        id = azurerm_network_security_group.aca.id
+      }
+      delegations = [
+        {
+          name = "aca-delegation"
+          properties = {
+            serviceName = "Microsoft.App/environments"
+          }
+        }
+      ]
+    }
+  }
+}
+
+resource "azapi_resource" "subnet_waf" {
+  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name      = "waf-subnet"
+  parent_id = azurerm_virtual_network.spoke.id
+
+  body = {
+    properties = {
+      addressPrefix = var.waf_subnet_cidr
+      networkSecurityGroup = {
+        id = azurerm_network_security_group.waf.id
+      }
+      delegations = [
+        {
+          name = "waf-delegation"
+          properties = {
+            serviceName = "Microsoft.App/environments"
+          }
+        }
+      ]
     }
   }
 }
@@ -163,20 +193,6 @@ resource "azurerm_network_security_rule" "workload_allow_https_outbound" {
   network_security_group_name = azurerm_network_security_group.workload.name
 }
 
-resource "azurerm_network_security_rule" "workload_allow_dns_outbound" {
-  name                        = "Allow-DNS-Outbound"
-  priority                    = 120
-  direction                   = "Outbound"
-  access                      = "Allow"
-  protocol                    = "Udp"
-  source_port_range           = "*"
-  destination_port_range      = "53"
-  source_address_prefix       = "*"
-  destination_address_prefix  = "AzurePlatformDNS"
-  resource_group_name         = azurerm_resource_group.spoke.name
-  network_security_group_name = azurerm_network_security_group.workload.name
-}
-
 resource "azurerm_network_security_rule" "workload_deny_all_outbound" {
   name                        = "Deny-All-Outbound"
   priority                    = 4096
@@ -245,16 +261,6 @@ resource "azurerm_network_security_rule" "pep_deny_all_inbound" {
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.spoke.name
   network_security_group_name = azurerm_network_security_group.pep.name
-}
-
-resource "azurerm_subnet_network_security_group_association" "workload" {
-  subnet_id                 = azurerm_subnet.workload.id
-  network_security_group_id = azurerm_network_security_group.workload.id
-}
-
-resource "azurerm_subnet_network_security_group_association" "pep" {
-  subnet_id                 = azurerm_subnet.pep.id
-  network_security_group_id = azurerm_network_security_group.pep.id
 }
 
 resource "azurerm_virtual_network_peering" "spoke_to_hub" {

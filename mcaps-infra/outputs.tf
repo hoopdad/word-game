@@ -16,8 +16,8 @@ output "spoke_vnet_id" {
 output "spoke_subnet_ids" {
   description = "Spoke subnet IDs."
   value = {
-    workload = azurerm_subnet.workload.id
-    pep      = azurerm_subnet.pep.id
+    workload = azapi_resource.subnet_workload.id
+    pep      = azapi_resource.subnet_pep.id
   }
 }
 

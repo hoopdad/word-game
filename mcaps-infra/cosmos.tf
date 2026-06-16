@@ -37,7 +37,7 @@ module "cosmos" {
   private_endpoints = {
     sql = {
       name                          = "pe-cosmos-${local.spoke_prefix}"
-      subnet_resource_id            = azurerm_subnet.pep.id
+      subnet_resource_id            = azapi_resource.subnet_pep.id
       subresource_name              = "SQL"
       private_dns_zone_group_name   = "default"
       private_dns_zone_resource_ids = [local.hub_private_dns_zone_ids["privatelink.documents.azure.com"]]

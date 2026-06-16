@@ -13,14 +13,14 @@ resource "azurerm_network_security_group" "waf" {
 }
 
 resource "azurerm_network_security_rule" "waf_allow_http" {
-  name                        = "Allow-HTTP-HTTPS-Inbound"
+  name                        = "Allow-HTTP-HTTPS-Private-Inbound"
   priority                    = 100
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_ranges     = ["80", "443"]
-  source_address_prefix       = "Internet"
+  source_address_prefix       = "VirtualNetwork"
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.spoke.name
   network_security_group_name = azurerm_network_security_group.waf.name
@@ -122,14 +122,4 @@ resource "azurerm_network_security_rule" "aca_deny_all_inbound" {
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.spoke.name
   network_security_group_name = azurerm_network_security_group.aca.name
-}
-
-resource "azurerm_subnet_network_security_group_association" "aca" {
-  subnet_id                 = azurerm_subnet.aca.id
-  network_security_group_id = azurerm_network_security_group.aca.id
-}
-
-resource "azurerm_subnet_network_security_group_association" "waf" {
-  subnet_id                 = azurerm_subnet.waf.id
-  network_security_group_id = azurerm_network_security_group.waf.id
 }

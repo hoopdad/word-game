@@ -20,7 +20,7 @@ module "acr" {
   private_endpoints = {
     registry = {
       name                          = "pe-acr-${local.spoke_prefix}"
-      subnet_resource_id            = azurerm_subnet.pep.id
+      subnet_resource_id            = azapi_resource.subnet_pep.id
       private_dns_zone_group_name   = "default"
       private_dns_zone_resource_ids = [local.hub_private_dns_zone_ids["privatelink.azurecr.io"]]
     }
