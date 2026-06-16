@@ -200,18 +200,37 @@ resource "azurerm_container_app" "waf" {
       memory = "1.0Gi"
 
       startup_probe {
-        transport = "TCP"
-        port      = 80
+        transport = "HTTP"
+        port      = 8080
+        path      = "/healthz"
+
+        initial_delay           = 15
+        interval_seconds        = 10
+        failure_count_threshold = 5
+        timeout                 = 3
       }
 
       readiness_probe {
-        transport = "TCP"
-        port      = 80
+        transport = "HTTP"
+        port      = 8080
+        path      = "/healthz"
+
+        initial_delay           = 15
+        interval_seconds        = 10
+        failure_count_threshold = 3
+        success_count_threshold = 1
+        timeout                 = 3
       }
 
       liveness_probe {
-        transport = "TCP"
-        port      = 80
+        transport = "HTTP"
+        port      = 8080
+        path      = "/healthz"
+
+        initial_delay           = 20
+        interval_seconds        = 30
+        failure_count_threshold = 3
+        timeout                 = 3
       }
 
       env {
@@ -228,7 +247,7 @@ resource "azurerm_container_app" "waf" {
 
   ingress {
     external_enabled = false
-    target_port      = 80
+    target_port      = 8080
 
     traffic_weight {
       latest_revision = true

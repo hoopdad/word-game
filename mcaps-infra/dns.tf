@@ -43,6 +43,16 @@ resource "azurerm_private_dns_zone_virtual_network_link" "aca_internal" {
   registration_enabled  = false
 }
 
+# Hub VNet link so hub DNS resolver (and VPN-connected workstations) can
+# resolve internal ACA app FQDNs in this zone.
+resource "azurerm_private_dns_zone_virtual_network_link" "aca_internal_hub" {
+  name                  = "mikeo-lab-hub-vnet-internal.wonderfulsea-3a2d2678.centralus-link"
+  resource_group_name   = azurerm_resource_group.spoke.name
+  private_dns_zone_name = azurerm_private_dns_zone.aca_internal.name
+  virtual_network_id    = data.azurerm_virtual_network.hub.id
+  registration_enabled  = false
+}
+
 resource "azurerm_private_dns_a_record" "aca_internal_wildcard" {
   name                = "*"
   zone_name           = azurerm_private_dns_zone.aca_internal.name
@@ -64,6 +74,16 @@ resource "azurerm_private_dns_zone_virtual_network_link" "waf_internal" {
   resource_group_name   = azurerm_resource_group.spoke.name
   private_dns_zone_name = azurerm_private_dns_zone.waf_internal.name
   virtual_network_id    = azurerm_virtual_network.spoke.id
+  registration_enabled  = false
+}
+
+# Hub VNet link so hub DNS resolver (and VPN-connected workstations) can
+# resolve the WAF ingress FQDN.
+resource "azurerm_private_dns_zone_virtual_network_link" "waf_internal_hub" {
+  name                  = "mikeo-lab-hub-vnet-internal.delightfulbush-d019f7e0.central-link"
+  resource_group_name   = azurerm_resource_group.spoke.name
+  private_dns_zone_name = azurerm_private_dns_zone.waf_internal.name
+  virtual_network_id    = data.azurerm_virtual_network.hub.id
   registration_enabled  = false
 }
 
@@ -91,4 +111,14 @@ import {
 import {
   to = azurerm_private_dns_zone_virtual_network_link.hub_to_spoke["privatelink.blob.core.windows.net"]
   id = "/subscriptions/0ff111e2-f787-4beb-900b-01bc2c83aec2/resourceGroups/mikeo-lab-rg/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net/virtualNetworkLinks/mikeo-lab-infra-vnet-privatelink.blob.core.windows.net-link"
+}
+
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.aca_internal_hub
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/internal.wonderfulsea-3a2d2678.centralus.azurecontainerapps.io/virtualNetworkLinks/mikeo-lab-hub-vnet-internal.wonderfulsea-3a2d2678.centralus-link"
+}
+
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.waf_internal_hub
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/internal.delightfulbush-d019f7e0.centralus.azurecontainerapps.io/virtualNetworkLinks/mikeo-lab-hub-vnet-internal.delightfulbush-d019f7e0.central-link"
 }
