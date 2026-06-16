@@ -1,0 +1,4 @@
+{"ts":"2026-06-16T22:47:00Z","event":"start","correlation_id":"cd-acr-build-no-docker-20260616","detail":"Started durable CD remediation to remove self-hosted docker daemon dependency."}
+{"ts":"2026-06-16T22:49:00Z","event":"workflow_change","correlation_id":"cd-acr-build-no-docker-20260616","detail":"Updated deploy-apps job to replace local docker login/build/push with az acr build and added preflight checks for ACR+infra outputs."}
+{"ts":"2026-06-16T22:52:00Z","event":"validation","correlation_id":"cd-acr-build-no-docker-20260616","detail":"Feature-branch workflow dispatch failed at azure/login due to federated credential subject restricted to refs/heads/main."}
+{"ts":"2026-06-16T22:53:00Z","event":"next_step","correlation_id":"cd-acr-build-no-docker-20260616","detail":"Promote change to main via PR and verify CD on main where OIDC subject is authorized."}
