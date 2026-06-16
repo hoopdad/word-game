@@ -21,6 +21,26 @@ exec > "$$LOG_FILE" 2>&1
 echo "=== GitHub Actions Runner Setup Starting ==="
 echo "Timestamp: $$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+# Install deployment tools first (Azure CLI, Docker, Node.js, npm)
+echo "=== Installing deployment tools ==="
+echo "Updating package manager..."
+apt-get update --quiet || true
+
+echo "Installing Azure CLI..."
+curl -sL https://aka.ms/InstallAzureCLIDeb | bash > /dev/null 2>&1 || echo "Azure CLI installation had issues, continuing..."
+
+echo "Installing Docker..."
+apt-get install -y --quiet docker.io 2>/dev/null || apt-get install -y --quiet docker-ce 2>/dev/null || echo "Docker installation skipped"
+
+echo "Installing Node.js..."
+apt-get install -y --quiet nodejs npm 2>/dev/null || echo "Node.js installation skipped"
+
+echo "Adding runner user to docker group..."
+usermod -aG docker "$$RUNNER_USER" 2>/dev/null || true
+
+echo "Restarting docker..."
+systemctl restart docker 2>/dev/null || true
+
 if [[ -z "$$GH_TOKEN" ]]; then
   echo "ERROR: GH_TOKEN not provided"
   exit 1
@@ -55,7 +75,7 @@ REG_TOKEN=$$(curl --connect-timeout 30 --max-time 30 -fsSL -X POST \
   -H "Authorization: Bearer $$GH_TOKEN" \
   -H "Accept: application/vnd.github+json" \
   "https://api.github.com/repos/$$GITHUB_REPO/actions/runners/registration-token" \
-  | jq -er '.token' || echo "")
+  | grep -oP '"token"\s*:\s*"\K[^"]+' | head -1 || echo "")
 
 if [[ -z "$$REG_TOKEN" ]]; then
   echo "ERROR: Failed to get registration token"
