@@ -338,7 +338,28 @@ jobs:
             exit 1
           fi
 
-          echo "runner_label=${runner_label}" >> "$GITHUB_OUTPUT"
+          # Wait for runner to register (poll GitHub API for up to 10 minutes)
+          echo "Waiting for runner to register with GitHub..."
+          for attempt in {1..60}; do
+            registered_runner="$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" \
+              | jq -r --arg lbl "$runner_label" '.runners[] | select(any(.labels[]?; .name == $lbl)) | select(.status == "online") | .name' \
+              | head -n 1)"
+             
+            if [[ -n "$registered_runner" ]]; then
+              echo "✓ Runner registered: $registered_runner"
+              echo "runner_label=${runner_label}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+             
+            echo "[$attempt/60] Runner not yet registered, waiting..."
+            sleep 10
+          done
+
+          echo "Timeout waiting for runner to register"
+          exit 1
 
   deploy-apps:
     name: Deploy apps
