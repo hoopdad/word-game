@@ -213,6 +213,20 @@ jobs:
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
+      - name: Log OIDC ACR RBAC
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
+          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
+          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
+          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
+          echo "ACR RBAC roles at scope:"
+          printf '%s\n' "$ROLE_LIST"
+          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
+            echo "Missing AcrPush on ACR scope for OIDC principal."
+            exit 1
+          fi
       - name: Build and push web image
         env:
           IMAGE_TAG: ${{ github.sha }}
@@ -279,6 +293,20 @@ jobs:
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
+      - name: Log OIDC ACR RBAC
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
+          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
+          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
+          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
+          echo "ACR RBAC roles at scope:"
+          printf '%s\n' "$ROLE_LIST"
+          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
+            echo "Missing AcrPush on ACR scope for OIDC principal."
+            exit 1
+          fi
       - name: Build and push api image
         env:
           IMAGE_TAG: ${{ github.sha }}
@@ -348,6 +376,20 @@ jobs:
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
+      - name: Log OIDC ACR RBAC
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
+          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
+          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
+          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
+          echo "ACR RBAC roles at scope:"
+          printf '%s\n' "$ROLE_LIST"
+          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
+            echo "Missing AcrPush on ACR scope for OIDC principal."
+            exit 1
+          fi
       - name: Build and push agent image
         env:
           IMAGE_TAG: ${{ github.sha }}
@@ -404,6 +446,20 @@ jobs:
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
+      - name: Log OIDC ACR RBAC
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
+          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
+          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
+          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
+          echo "ACR RBAC roles at scope:"
+          printf '%s\n' "$ROLE_LIST"
+          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
+            echo "Missing AcrPush on ACR scope for OIDC principal."
+            exit 1
+          fi
       - name: Build and push WAF image
         env:
           IMAGE_TAG: ${{ github.sha }}
