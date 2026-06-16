@@ -203,6 +203,8 @@ jobs:
   runner-readiness:
     name: Verify self-hosted runner readiness
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
     needs:
       - detect-changes
       - infra-deploy
