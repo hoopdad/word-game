@@ -306,15 +306,9 @@ jobs:
               fi
 
               # config.sh must complete before run.sh starts; background only run.sh.
-              # runner.pid is not used (ephemeral runners exit after one job anyway).
-              sudo -u "${RUNNER_USER}" bash -lc "
-                set -e
-                cd \"${RUNNER_DIR}\"
-                rm -f .runner .credentials .credentials_rsaparams
-                ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --ephemeral --replace
-                nohup ./run.sh >> runner.log 2>&1 &
-                disown
-              "
+              # < /dev/null is required so run.sh does not inherit the vm run-command
+              # stdin fd and inadvertently keep the session alive indefinitely.
+              sudo -u "${RUNNER_USER}" bash -lc "cd \"${RUNNER_DIR}\" && rm -f .runner .credentials .credentials_rsaparams && ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --ephemeral --replace && nohup ./run.sh > runner.log 2>&1 < /dev/null &"
             '
 
           runner_online=""
