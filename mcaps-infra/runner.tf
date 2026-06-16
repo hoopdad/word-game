@@ -104,18 +104,18 @@ resource "azurerm_route_table" "runner" {
 }
 
 resource "azurerm_route" "runner_default_internet" {
-  count                  = var.enable_self_hosted_runner ? 1 : 0
-  name                   = "default-internet"
-  resource_group_name    = azurerm_resource_group.spoke.name
-  route_table_name       = azurerm_route_table.runner[0].name
-  address_prefix         = "0.0.0.0/0"
-  next_hop_type          = "Internet"
+  count               = var.enable_self_hosted_runner ? 1 : 0
+  name                = "default-internet"
+  resource_group_name = azurerm_resource_group.spoke.name
+  route_table_name    = azurerm_route_table.runner[0].name
+  address_prefix      = "0.0.0.0/0"
+  next_hop_type       = "Internet"
 }
 
 resource "azurerm_subnet_route_table_association" "runner" {
   count          = var.enable_self_hosted_runner ? 1 : 0
   subnet_id      = azapi_resource.subnet_workload.id
-  route_table_id  = azurerm_route_table.runner[0].id
+  route_table_id = azurerm_route_table.runner[0].id
 }
 
 resource "azurerm_linux_virtual_machine" "runner" {
@@ -132,7 +132,7 @@ resource "azurerm_linux_virtual_machine" "runner" {
   user_data = var.github_runner_token != "" ? base64encode(format("%s\nexport GH_TOKEN='%s'\n%s",
     "#!/bin/bash",
     var.github_runner_token,
-    join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) : 
+    join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) :
       line == "#!/bin/bash" ? "" : "${line}\n"
     ])
   )) : null
