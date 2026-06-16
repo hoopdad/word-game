@@ -143,34 +143,3 @@ resource "azurerm_linux_virtual_machine" "runner" {
     ignore_changes = [identity]
   }
 }
-
-resource "azurerm_public_ip" "nat_gateway_ip" {
-  count               = var.enable_self_hosted_runner ? 1 : 0
-  name                = "pip-nat-runner-${local.spoke_prefix}"
-  location            = var.spoke_region
-  resource_group_name = azurerm_resource_group.spoke.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  tags                = local.common_tags
-}
-
-resource "azurerm_nat_gateway" "runner_nat" {
-  count               = var.enable_self_hosted_runner ? 1 : 0
-  name                = "nat-runner-${local.spoke_prefix}"
-  location            = var.spoke_region
-  resource_group_name = azurerm_resource_group.spoke.name
-  sku_name            = "Standard"
-  tags                = local.common_tags
-}
-
-resource "azurerm_nat_gateway_public_ip_association" "runner" {
-  count                = var.enable_self_hosted_runner ? 1 : 0
-  nat_gateway_id       = azurerm_nat_gateway.runner_nat[0].id
-  public_ip_address_id = azurerm_public_ip.nat_gateway_ip[0].id
-}
-
-resource "azurerm_subnet_nat_gateway_association" "runner" {
-  count          = var.enable_self_hosted_runner ? 1 : 0
-  subnet_id      = azapi_resource.subnet_workload.id
-  nat_gateway_id = azurerm_nat_gateway.runner_nat[0].id
-}
