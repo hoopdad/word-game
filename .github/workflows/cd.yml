@@ -290,7 +290,7 @@ jobs:
                 bash /tmp/install-azcli.sh
               fi
 
-              systemctl enable --now docker
+              systemctl start docker
               usermod -aG docker "${RUNNER_USER}"
 
               mkdir -p "${RUNNER_DIR}"
