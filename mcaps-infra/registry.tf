@@ -8,7 +8,7 @@ module "acr" {
 
   sku                           = var.acr_sku
   public_network_access_enabled = false
-  export_policy_enabled         = true
+  export_policy_enabled         = false
   zone_redundancy_enabled       = false
   # Admin user enabled so CD can authenticate the Container Apps registry with
   # admin credentials (az containerapp registry set). Acceptable for this

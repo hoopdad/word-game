@@ -211,7 +211,6 @@ jobs:
             exit 1
           fi
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          az acr update --name "$ACR_NAME" --public-network-enabled true >/dev/null
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push web image
@@ -223,17 +222,16 @@ jobs:
           VITE_ENTRA_POST_LOGOUT_REDIRECT_URI: ${{ vars.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI }}
           VITE_ENTRA_SCOPES: ${{ vars.VITE_ENTRA_SCOPES }}
         run: |
-          az acr login --name "${ACR_NAME}"
-          docker build \
+          az acr build \
+            --registry "${ACR_NAME}" \
+            --image "web:${IMAGE_TAG}" \
             --file apps/web/Dockerfile \
             --build-arg VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID}" \
             --build-arg VITE_ENTRA_AUTHORITY="${VITE_ENTRA_AUTHORITY}" \
             --build-arg VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI}" \
             --build-arg VITE_ENTRA_POST_LOGOUT_REDIRECT_URI="${VITE_ENTRA_POST_LOGOUT_REDIRECT_URI}" \
             --build-arg VITE_ENTRA_SCOPES="${VITE_ENTRA_SCOPES}" \
-            --tag "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" \
             .
-          docker push "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
       - name: Configure web registry credentials
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
@@ -279,19 +277,17 @@ jobs:
             exit 1
           fi
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          az acr update --name "$ACR_NAME" --public-network-enabled true >/dev/null
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push api image
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          az acr login --name "${ACR_NAME}"
-          docker build \
+          az acr build \
+            --registry "${ACR_NAME}" \
+            --image "api:${IMAGE_TAG}" \
             --file apps/api/Dockerfile \
-            --tag "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" \
             .
-          docker push "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
       - name: Configure api registry credentials
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
@@ -350,19 +346,17 @@ jobs:
             exit 1
           fi
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          az acr update --name "$ACR_NAME" --public-network-enabled true >/dev/null
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push agent image
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          az acr login --name "${ACR_NAME}"
-          docker build \
+          az acr build \
+            --registry "${ACR_NAME}" \
+            --image "agent:${IMAGE_TAG}" \
             --file apps/agent/Dockerfile \
-            --tag "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}" \
             .
-          docker push "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
       - name: Configure agent registry credentials
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
@@ -408,19 +402,17 @@ jobs:
             exit 1
           fi
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          az acr update --name "$ACR_NAME" --public-network-enabled true >/dev/null
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Build and push WAF image
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          az acr login --name "${ACR_NAME}"
-          docker build \
+          az acr build \
+            --registry "${ACR_NAME}" \
+            --image "waf:${IMAGE_TAG}" \
             --file apps/waf/Dockerfile \
-            --tag "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}" \
             apps/waf
-          docker push "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
       - name: Configure WAF registry credentials
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
