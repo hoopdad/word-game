@@ -106,9 +106,13 @@ resource "azurerm_linux_virtual_machine" "runner" {
   disable_password_authentication = false
   network_interface_ids           = [azurerm_network_interface.runner[0].id]
   tags                            = local.common_tags
-  user_data = var.github_runner_token != "" ? base64encode(templatefile("${path.module}/runner-setup.sh", {
-    gh_token = var.github_runner_token
-  })) : null
+  user_data = var.github_runner_token != "" ? base64encode(format("%s\nexport GH_TOKEN='%s'\n%s",
+    "#!/bin/bash",
+    var.github_runner_token,
+    join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) : 
+      line == "#!/bin/bash" ? "" : "${line}\n"
+    ])
+  )) : null
 
   identity {
     type         = "UserAssigned"

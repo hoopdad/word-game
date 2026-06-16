@@ -3,16 +3,16 @@ set -e
 
 # GitHub Actions Runner Cloud-Init Setup Script
 # This runs automatically when the Azure VM is first created
-# The GH_TOKEN is injected via Terraform variable
+# The GH_TOKEN must be passed as an environment variable
 
 RUNNER_USER="runner"
-RUNNER_HOME="/home/${RUNNER_USER}"
-RUNNER_DIR="${RUNNER_HOME}/actions-runner"
+RUNNER_HOME="/home/$${RUNNER_USER}"
+RUNNER_DIR="$${RUNNER_HOME}/actions-runner"
 RUNNER_VERSION="2.327.1"
 RUNNER_NAME="vm-runner-$$(hostname)"
 RUNNER_LABEL="wordgame-spoke"
 GITHUB_REPO="hoopdad/word-game"
-GH_TOKEN="${gh_token}"
+# GH_TOKEN must be provided as environment variable
 LOG_FILE="/var/log/runner-setup.log"
 
 # Log all output
