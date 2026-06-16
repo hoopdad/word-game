@@ -57,6 +57,21 @@ resource "azurerm_network_security_rule" "runner_allow_https_outbound" {
   network_security_group_name = azurerm_network_security_group.runner[0].name
 }
 
+resource "azurerm_network_security_rule" "runner_allow_http_outbound" {
+  count                       = var.enable_self_hosted_runner ? 1 : 0
+  name                        = "Allow-HTTP-Outbound"
+  priority                    = 120
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "80"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "Internet"
+  resource_group_name         = azurerm_resource_group.spoke.name
+  network_security_group_name = azurerm_network_security_group.runner[0].name
+}
+
 resource "azurerm_network_security_rule" "runner_deny_all_outbound" {
   count                       = var.enable_self_hosted_runner ? 1 : 0
   name                        = "Deny-All-Outbound"

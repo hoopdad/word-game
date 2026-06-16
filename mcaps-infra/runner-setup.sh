@@ -45,17 +45,12 @@ echo "deb [signed-by=/etc/apt/keyrings/hashicorp.gpg] https://apt.releases.hashi
 apt-get update --quiet || true
 DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet terraform || true
 
-echo "Installing Docker via snap..."
-snap install docker --classic 2>/dev/null || echo "Docker snap installation skipped"
+echo "Installing Docker (apt)..."
+DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet docker.io || true
 
-echo "Installing Node.js via snap..."
-snap install node --classic 2>/dev/null || echo "Node.js snap installation skipped"
-
-echo "Creating symlinks for docker and node in /usr/local/bin..."
-ln -sf /snap/bin/docker /usr/local/bin/docker || true
-ln -sf /snap/bin/docker-compose /usr/local/bin/docker-compose || true
-ln -sf /snap/bin/node /usr/local/bin/node || true
-ln -sf /snap/bin/npm /usr/local/bin/npm || true
+echo "Installing Node.js 20 + npm (NodeSource)..."
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1 || true
+DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet nodejs || true
 
 echo "Creating docker group and adding runner user..."
 groupadd docker 2>/dev/null || true
@@ -63,13 +58,13 @@ usermod -aG docker "$$RUNNER_USER" 2>/dev/null || true
 
 echo "Setting PATH environment for runner user..."
 mkdir -p "$$RUNNER_HOME/.bashrc.d"
-echo 'export PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin:$PATH' >> "$$RUNNER_HOME/.bashrc.d/path"
+echo 'export PATH=/usr/local/bin:/usr/bin:/bin:$PATH' >> "$$RUNNER_HOME/.bashrc.d/path"
 
 # Setup directory
 echo "Setting up runner directory..."
 mkdir -p "$$RUNNER_DIR"
 chown -R "$${RUNNER_USER}:$${RUNNER_USER}" "$$RUNNER_DIR"
-echo 'PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin' > "$$RUNNER_DIR/.env"
+echo 'PATH=/usr/local/bin:/usr/bin:/bin' > "$$RUNNER_DIR/.env"
 chown "$${RUNNER_USER}:$${RUNNER_USER}" "$$RUNNER_DIR/.env"
 cd "$$RUNNER_DIR"
 
