@@ -128,4 +128,11 @@ resource "azurerm_linux_virtual_machine" "runner" {
     azapi_resource.subnet_workload,
     azurerm_network_interface_security_group_association.runner
   ]
+
+  lifecycle {
+    # The VM carries a second UAMI injected by the management subscription
+    # (for Azure Monitor Agent). TF only owns the spoke UAMI; ignoring
+    # identity drift prevents a 30-45 min ARM timeout on every apply.
+    ignore_changes = [identity]
+  }
 }
