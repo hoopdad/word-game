@@ -47,6 +47,38 @@ resource "azurerm_subnet" "pep" {
   private_endpoint_network_policies = "Disabled"
 }
 
+resource "azurerm_subnet" "aca" {
+  name                 = "aca-subnet"
+  resource_group_name  = azurerm_resource_group.spoke.name
+  virtual_network_name = azurerm_virtual_network.spoke.name
+  address_prefixes     = [var.aca_subnet_cidr]
+
+  delegation {
+    name = "aca-delegation"
+
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
+}
+
+resource "azurerm_subnet" "waf" {
+  name                 = "waf-subnet"
+  resource_group_name  = azurerm_resource_group.spoke.name
+  virtual_network_name = azurerm_virtual_network.spoke.name
+  address_prefixes     = [var.waf_subnet_cidr]
+
+  delegation {
+    name = "waf-delegation"
+
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
+}
+
 resource "azurerm_network_security_group" "workload" {
   name                = "nsg-workload-${local.spoke_prefix}"
   location            = var.spoke_region

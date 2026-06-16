@@ -71,7 +71,7 @@ variable "spoke_vnet_address_space" {
 
 variable "workload_subnet_cidr" {
   type        = string
-  description = "CIDR for the workload subnet."
+  description = "CIDR for the reserved workload/management subnet."
 }
 
 variable "pep_subnet_cidr" {
@@ -81,7 +81,131 @@ variable "pep_subnet_cidr" {
 
 variable "private_dns_zone_names" {
   type        = list(string)
-  description = "Private DNS zones already present in the hub and linked from the spoke."
+  description = "Private DNS zones present in the hub and consumed by the spoke private endpoints. Zones must exist in the hub before apply (see _hub-todo)."
+}
+
+variable "aca_subnet_cidr" {
+  type        = string
+  description = "CIDR for the internal Container Apps environment subnet (delegated, /27 minimum)."
+}
+
+variable "waf_subnet_cidr" {
+  type        = string
+  description = "CIDR for the public WAF Container Apps environment subnet (delegated, /27 minimum)."
+}
+
+variable "container_port" {
+  type        = number
+  description = "Default application container port."
+  default     = 8080
+}
+
+variable "placeholder_image" {
+  type        = string
+  description = "Public bootstrap image used for initial Container App creation before app images are built."
+  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+}
+
+variable "waf_image" {
+  type        = string
+  description = "Public WAF image used for initial WAF Container App creation."
+  default     = "owasp/modsecurity-crs:nginx-alpine"
+}
+
+variable "acr_sku" {
+  type        = string
+  description = "Azure Container Registry SKU."
+  default     = "Premium"
+}
+
+variable "cosmos_consistency_level" {
+  type        = string
+  description = "Cosmos DB consistency level."
+  default     = "Session"
+}
+
+variable "cosmos_database_name" {
+  type        = string
+  description = "Cosmos SQL database name."
+  default     = "wordgame-db"
+}
+
+variable "cosmos_container_name" {
+  type        = string
+  description = "Cosmos SQL container name."
+  default     = "game-events"
+}
+
+variable "cosmos_partition_key_path" {
+  type        = string
+  description = "Cosmos SQL container partition key path."
+  default     = "/gameId"
+}
+
+variable "cosmos_container_throughput" {
+  type        = number
+  description = "Manual RU/s throughput for the Cosmos SQL database."
+  default     = 400
+}
+
+variable "openai_sku_name" {
+  type        = string
+  description = "Azure OpenAI SKU."
+  default     = "S0"
+}
+
+variable "openai_model_name" {
+  type        = string
+  description = "Placeholder Azure OpenAI model name for deployment."
+  default     = "gpt-4o-mini"
+}
+
+variable "openai_model_version" {
+  type        = string
+  description = "Placeholder Azure OpenAI model version."
+  default     = "2024-07-18"
+}
+
+variable "openai_deployment_name" {
+  type        = string
+  description = "Placeholder Azure OpenAI deployment name."
+  default     = "chat-default"
+}
+
+variable "openai_deployment_sku" {
+  type        = string
+  description = "Azure OpenAI deployment SKU name."
+  default     = "GlobalStandard"
+}
+
+variable "ai_foundry_project_name" {
+  type        = string
+  description = "Placeholder AI Foundry project name."
+  default     = "wordgame-project"
+}
+
+variable "enable_role_assignments" {
+  type        = bool
+  description = "Enable role assignments that require User Access Administrator or Owner."
+  default     = false
+}
+
+variable "enable_openai_resources" {
+  type        = bool
+  description = "Enable Azure OpenAI account and dependent resources."
+  default     = false
+}
+
+variable "enable_foundry_resources" {
+  type        = bool
+  description = "Enable preview Foundry/OpenAI deployment resources."
+  default     = false
+}
+
+variable "enable_storage" {
+  type        = bool
+  description = "Enable an optional artifacts storage account with a blob private endpoint."
+  default     = false
 }
 
 variable "use_remote_gateways" {

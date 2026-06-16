@@ -1,0 +1,223 @@
+module "aca_env" {
+  source  = "Azure/avm-res-app-managedenvironment/azurerm"
+  version = "0.5.0"
+
+  location            = var.spoke_region
+  name                = "cae-${local.spoke_prefix}"
+  resource_group_name = azurerm_resource_group.spoke.name
+
+  zone_redundant = false
+
+  vnet_configuration = {
+    infrastructure_subnet_id = azurerm_subnet.aca.id
+    internal                 = true
+  }
+
+  log_analytics_workspace = {
+    resource_id = data.azurerm_log_analytics_workspace.hub.id
+  }
+
+  workload_profiles = [
+    {
+      name                  = "Consumption"
+      workload_profile_type = "Consumption"
+    }
+  ]
+
+  enable_telemetry = false
+  tags             = local.common_tags
+}
+
+module "waf_env" {
+  source  = "Azure/avm-res-app-managedenvironment/azurerm"
+  version = "0.5.0"
+
+  location            = var.spoke_region
+  name                = "cae-waf-${local.spoke_prefix}"
+  resource_group_name = azurerm_resource_group.spoke.name
+
+  zone_redundant = false
+
+  # Single approved public ingress edge for the spoke.
+  vnet_configuration = {
+    infrastructure_subnet_id = azurerm_subnet.waf.id
+    internal                 = false
+  }
+
+  public_network_access = "Enabled"
+
+  log_analytics_workspace = {
+    resource_id = data.azurerm_log_analytics_workspace.hub.id
+  }
+
+  workload_profiles = [
+    {
+      name                  = "Consumption"
+      workload_profile_type = "Consumption"
+    }
+  ]
+
+  enable_telemetry = false
+  tags             = local.common_tags
+}
+
+resource "azurerm_container_app" "web" {
+  name                         = "ca-web-${local.spoke_prefix}"
+  container_app_environment_id = module.aca_env.resource_id
+  resource_group_name          = azurerm_resource_group.spoke.name
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+  tags                         = local.common_tags
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [module.uami.resource_id]
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 1
+
+    container {
+      name   = "web"
+      image  = var.placeholder_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+    }
+  }
+
+  ingress {
+    external_enabled = false
+    target_port      = var.container_port
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
+
+resource "azurerm_container_app" "api" {
+  name                         = "ca-api-${local.spoke_prefix}"
+  container_app_environment_id = module.aca_env.resource_id
+  resource_group_name          = azurerm_resource_group.spoke.name
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+  tags                         = local.common_tags
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [module.uami.resource_id]
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 1
+
+    container {
+      name   = "api"
+      image  = var.placeholder_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+
+      env {
+        name  = "PORT"
+        value = tostring(var.container_port)
+      }
+    }
+  }
+
+  ingress {
+    external_enabled = false
+    target_port      = var.container_port
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
+
+resource "azurerm_container_app" "agent" {
+  name                         = "ca-agent-${local.spoke_prefix}"
+  container_app_environment_id = module.aca_env.resource_id
+  resource_group_name          = azurerm_resource_group.spoke.name
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+  tags                         = local.common_tags
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [module.uami.resource_id]
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 1
+
+    container {
+      name   = "agent"
+      image  = var.placeholder_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+    }
+  }
+}
+
+resource "azurerm_container_app" "waf" {
+  name                         = "ca-waf-${local.spoke_prefix}"
+  container_app_environment_id = module.waf_env.resource_id
+  resource_group_name          = azurerm_resource_group.spoke.name
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+  tags                         = local.common_tags
+  depends_on                   = [azurerm_private_dns_a_record.aca_internal_wildcard]
+
+  lifecycle {
+    ignore_changes = [template[0].container[0].image]
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 1
+
+    container {
+      name   = "waf"
+      image  = var.waf_image
+      cpu    = 0.5
+      memory = "1.0Gi"
+
+      env {
+        name  = "WEB_UPSTREAM"
+        value = azurerm_container_app.web.ingress[0].fqdn
+      }
+
+      env {
+        name  = "API_UPSTREAM"
+        value = azurerm_container_app.api.ingress[0].fqdn
+      }
+    }
+  }
+
+  ingress {
+    external_enabled = true
+    target_port      = 80
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}

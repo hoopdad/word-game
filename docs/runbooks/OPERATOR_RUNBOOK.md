@@ -56,7 +56,7 @@ Local builds do NOT guarantee CI/CD success. CI runs linting, tests, and deploym
   - Web job: `apps/web/**`
   - API job: `apps/api/**`
   - Agent job: `apps/agent/**`
-  - Infra validate job: `infra/**`
+  - Infra validate job: `mcaps-infra/**`
   - Shared/tooling fan-out: `packages/shared/**`, `scripts/**`, `package.json`, `package-lock.json`
 - Operator expectation:
   - README/workflow-only PRs: CI may be skipped by design.
