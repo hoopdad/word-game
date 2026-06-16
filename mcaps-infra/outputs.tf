@@ -68,7 +68,7 @@ output "container_apps_environment_id" {
 }
 
 output "waf_container_apps_environment_id" {
-  description = "Public WAF Container Apps environment ID."
+  description = "Private WAF Container Apps environment ID."
   value       = module.waf_env.resource_id
 }
 
@@ -83,7 +83,7 @@ output "container_app_names" {
 }
 
 output "waf_fqdn" {
-  description = "Public WAF hostname."
+  description = "Private WAF hostname."
   value       = azurerm_container_app.waf.ingress[0].fqdn
 }
 

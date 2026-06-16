@@ -13,7 +13,7 @@ hub_ampls_name          = "mikeo-lab-ampls"
 
 # Spoke VNet 10.0.28.0/24 carved into four subnets:
 #   aca-subnet      10.0.28.0/27    internal Container Apps env (delegated)
-#   waf-subnet      10.0.28.32/27   public WAF Container Apps env (delegated)
+#   waf-subnet      10.0.28.32/27   private WAF Container Apps env (delegated)
 #   pep-subnet      10.0.28.64/26   private endpoints
 #   workload-subnet 10.0.28.128/25  reserved / management
 spoke_vnet_address_space = ["10.0.28.0/24"]
@@ -23,9 +23,8 @@ pep_subnet_cidr          = "10.0.28.64/26"
 workload_subnet_cidr     = "10.0.28.128/25"
 
 # Hub private DNS zones consumed by the spoke private endpoints.
-# IMPORTANT: privatelink.azurecr.io and privatelink.documents.azure.com are NOT
-# part of the base hub zone set. Apply _hub-todo/hub-new-dns-zones.tf.snippet
-# against the hub to create + link them BEFORE applying this spoke.
+# These zones are owned in the hub and linked to the spoke VNet from hub-side
+# Terraform/snippets (see _hub-todo/hub-dns-links.tf.snippet).
 private_dns_zone_names = [
   "privatelink.blob.core.windows.net",
   "privatelink.vaultcore.azure.net",

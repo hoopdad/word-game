@@ -50,3 +50,19 @@ resource "azurerm_private_dns_zone_virtual_network_link" "agentsvc" {
   virtual_network_id    = local.spoke_vnet_id
   registration_enabled  = false
 }
+
+resource "azurerm_private_dns_zone_virtual_network_link" "azurecr" {
+  name                  = "link-azurecr-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.azurecr.io"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "documents" {
+  name                  = "link-documents-${local.spoke_prefix}"
+  resource_group_name   = "mikeo-lab-rg"
+  private_dns_zone_name = "privatelink.documents.azure.com"
+  virtual_network_id    = local.spoke_vnet_id
+  registration_enabled  = false
+}

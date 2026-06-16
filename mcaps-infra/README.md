@@ -12,7 +12,7 @@ Spoke VNet `10.0.28.0/24`, peered to the hub:
 | Subnet            | CIDR             | Purpose                                            |
 | ----------------- | ---------------- | -------------------------------------------------- |
 | `aca-subnet`      | `10.0.28.0/27`   | Internal Container Apps env (delegated `Microsoft.App/environments`) |
-| `waf-subnet`      | `10.0.28.32/27`  | Public WAF Container Apps env (delegated)          |
+| `waf-subnet`      | `10.0.28.32/27`  | Private WAF Container Apps env (delegated)         |
 | `pep-subnet`      | `10.0.28.64/26`  | Private endpoints (ACR, Key Vault, Cosmos, Storage)|
 | `workload-subnet` | `10.0.28.128/25` | Reserved / management                              |
 
@@ -27,14 +27,14 @@ Spoke VNet `10.0.28.0/24`, peered to the hub:
   `lifecycle { ignore_changes = [image] }` because CD updates images out-of-band
   via `az containerapp update`. AVM's container-app module can't express that.
 - Internal-env default-domain private DNS zone created in the spoke + wildcard A
-  record so the public WAF env can resolve internal app FQDNs.
+  record so the private WAF env can resolve internal app FQDNs.
 - Optional, flag-gated Azure OpenAI / AI Foundry resources.
 
 ## Prerequisites (hub side — apply BEFORE the first spoke apply)
 
-The hub is missing two private DNS zones this spoke needs. Apply
-`_hub-todo/hub-new-dns-zones.tf.snippet` against the **hub** subscription to create
-and VNet-link both zones first, or the spoke `data` lookups will fail:
+Private DNS zones are hub-owned. Keep zone creation in hub Terraform and link the
+spoke VNet to those existing hub zones. Use `_hub-todo/hub-dns-links.tf.snippet`
+for the hub-side VNet links, including:
 
 - `privatelink.azurecr.io` (ACR)
 - `privatelink.documents.azure.com` (Cosmos DB)

@@ -91,7 +91,7 @@ variable "aca_subnet_cidr" {
 
 variable "waf_subnet_cidr" {
   type        = string
-  description = "CIDR for the public WAF Container Apps environment subnet (delegated, /27 minimum)."
+  description = "CIDR for the private WAF Container Apps environment subnet (delegated, /27 minimum)."
 }
 
 variable "container_port" {
@@ -108,7 +108,7 @@ variable "placeholder_image" {
 
 variable "waf_image" {
   type        = string
-  description = "Public WAF image used for initial WAF Container App creation."
+  description = "WAF image used for initial WAF Container App creation."
   default     = "owasp/modsecurity-crs:nginx-alpine"
 }
 

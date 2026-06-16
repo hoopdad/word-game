@@ -13,7 +13,7 @@ locals {
 }
 
 # Internal Container Apps environment default-domain zone. Linked to the spoke
-# VNet so the public WAF environment can resolve the internal app FQDNs.
+# VNet so the private WAF environment can resolve the internal app FQDNs.
 resource "azurerm_private_dns_zone" "aca_internal" {
   name                = module.aca_env.default_domain
   resource_group_name = azurerm_resource_group.spoke.name

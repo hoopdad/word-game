@@ -38,13 +38,13 @@ module "waf_env" {
 
   zone_redundant = false
 
-  # Single approved public ingress edge for the spoke.
+  # Policy requires private-only ingress.
   vnet_configuration = {
     infrastructure_subnet_id = azurerm_subnet.waf.id
-    internal                 = false
+    internal                 = true
   }
 
-  public_network_access = "Enabled"
+  public_network_access = "Disabled"
 
   log_analytics_workspace = {
     resource_id = data.azurerm_log_analytics_workspace.hub.id
@@ -212,7 +212,7 @@ resource "azurerm_container_app" "waf" {
   }
 
   ingress {
-    external_enabled = true
+    external_enabled = false
     target_port      = 80
 
     traffic_weight {
