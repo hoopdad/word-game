@@ -69,12 +69,16 @@ and cross-resource access grants land:
 | `enable_storage`           | AVM storage account + blob private endpoint             |
 | `enable_openai_resources`  | Azure OpenAI cognitive account                          |
 | `enable_foundry_resources` | AI Foundry project + deployment (azapi)                 |
+| `enable_self_hosted_runner`| Private Ubuntu VM in `workload-subnet` for ephemeral GitHub runner registration |
+| `runner_vm_size`           | Azure VM size for the self-hosted runner                |
+| `runner_label`             | Base GitHub runner label used by CD                     |
 
 > ACR has `admin_enabled = true` so CD can authenticate the Container Apps registry
-> with admin credentials. When `enable_role_assignments = true`, Terraform also adds
-> GitHub OIDC `AcrPush` on ACR (used by `az acr build`; this role also allows pull)
-> while keeping existing UAMI-based `AcrPull` behavior unchanged. Disable the admin
-> user once your pipeline fully uses role-based auth.
+> with admin credentials. CD now builds/pushes images from an ephemeral self-hosted
+> runner in the spoke VNet (Docker push path) so ACR public network access can remain
+> disabled. When `enable_role_assignments = true`, Terraform also adds GitHub OIDC
+> `AcrPush` on ACR while keeping existing UAMI-based `AcrPull` behavior unchanged.
+> Disable the admin user once your pipeline fully uses role-based auth.
 
 ## Teardown of the legacy stack
 

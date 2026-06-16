@@ -39,10 +39,13 @@ private_dns_zone_names = [
 use_remote_gateways = true
 
 # Workload toggles (default off until hub prerequisites and access grants exist).
-enable_role_assignments  = false
-enable_openai_resources  = false
-enable_foundry_resources = false
-enable_storage           = false
+enable_role_assignments   = false
+enable_openai_resources   = false
+enable_foundry_resources  = false
+enable_storage            = false
+enable_self_hosted_runner = true
+runner_vm_size            = "Standard_D2s_v5"
+runner_label              = "wordgame-spoke"
 
 tags = {
   environment = "lab"

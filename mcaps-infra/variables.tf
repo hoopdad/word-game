@@ -208,6 +208,24 @@ variable "enable_storage" {
   default     = false
 }
 
+variable "enable_self_hosted_runner" {
+  type        = bool
+  description = "Enable a private self-hosted GitHub Actions runner VM in the workload subnet."
+  default     = true
+}
+
+variable "runner_vm_size" {
+  type        = string
+  description = "Azure VM size for the self-hosted runner."
+  default     = "Standard_D2s_v5"
+}
+
+variable "runner_label" {
+  type        = string
+  description = "Base label used when registering ephemeral self-hosted runners."
+  default     = "wordgame-spoke"
+}
+
 variable "use_remote_gateways" {
   type        = bool
   description = "Allow the spoke to use the hub gateway."

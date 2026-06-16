@@ -111,3 +111,13 @@ output "openai_account_name" {
   description = "Azure OpenAI account name (null when disabled)."
   value       = try(azurerm_cognitive_account.openai[0].name, null)
 }
+
+output "runner_vm_name" {
+  description = "Self-hosted runner VM name (null when disabled)."
+  value       = try(azurerm_linux_virtual_machine.runner[0].name, null)
+}
+
+output "runner_label" {
+  description = "Base self-hosted runner label."
+  value       = var.runner_label
+}

@@ -42,6 +42,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  actions: write
 
 env:
   AZURE_LOCATION: ${{ inputs.location || vars.AZURE_LOCATION || 'centralus' }}
@@ -106,6 +107,8 @@ jobs:
       api_app_name: ${{ steps.tf_outputs.outputs.api_app_name }}
       agent_app_name: ${{ steps.tf_outputs.outputs.agent_app_name }}
       waf_app_name: ${{ steps.tf_outputs.outputs.waf_app_name }}
+      runner_vm_name: ${{ steps.tf_outputs.outputs.runner_vm_name }}
+      runner_label: ${{ steps.tf_outputs.outputs.runner_label }}
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -123,6 +126,7 @@ jobs:
       - name: Register required Azure resource providers
         run: |
           az provider register --namespace Microsoft.App --wait
+          az provider register --namespace Microsoft.Compute --wait
           az provider register --namespace Microsoft.ContainerRegistry --wait
           az provider register --namespace Microsoft.DocumentDB --wait
           az provider register --namespace Microsoft.Network --wait
@@ -168,9 +172,21 @@ jobs:
           API_APP_NAME="$(terraform -chdir=mcaps-infra output -json container_app_names | jq -r '.api')"
           AGENT_APP_NAME="$(terraform -chdir=mcaps-infra output -json container_app_names | jq -r '.agent')"
           WAF_APP_NAME="$(terraform -chdir=mcaps-infra output -json container_app_names | jq -r '.waf')"
+          RUNNER_VM_NAME="$(terraform -chdir=mcaps-infra output -raw runner_vm_name)"
+          RUNNER_LABEL="$(terraform -chdir=mcaps-infra output -raw runner_label)"
 
           if [[ -z "$ACR_LOGIN_SERVER" || "$ACR_LOGIN_SERVER" == *"::error::"* || "$ACR_LOGIN_SERVER" != *.azurecr.io ]]; then
             echo "Invalid acr_login_server output: $ACR_LOGIN_SERVER"
+            exit 1
+          fi
+
+          if [[ -z "$RUNNER_VM_NAME" || "$RUNNER_VM_NAME" == "null" ]]; then
+            echo "runner_vm_name output is required when self-hosted runner is enabled."
+            exit 1
+          fi
+
+          if [[ -z "$RUNNER_LABEL" || "$RUNNER_LABEL" == "null" ]]; then
+            echo "runner_label output is required when self-hosted runner is enabled."
             exit 1
           fi
 
@@ -180,14 +196,135 @@ jobs:
           echo "api_app_name=${API_APP_NAME}" >> "$GITHUB_OUTPUT"
           echo "agent_app_name=${AGENT_APP_NAME}" >> "$GITHUB_OUTPUT"
           echo "waf_app_name=${WAF_APP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "runner_vm_name=${RUNNER_VM_NAME}" >> "$GITHUB_OUTPUT"
+          echo "runner_label=${RUNNER_LABEL}" >> "$GITHUB_OUTPUT"
 
-  deploy-web:
-    name: Deploy web app
+  prepare-runner:
+    name: Prepare self-hosted runner
     runs-on: ubuntu-latest
     needs:
       - detect-changes
       - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web))
+    concurrency:
+      group: wordgame-spoke-runner
+      cancel-in-progress: false
+    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
+    outputs:
+      runner_label: ${{ steps.prepare.outputs.runner_label }}
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - id: prepare
+        name: Register and start ephemeral runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          VM_NAME: ${{ needs.infra-deploy.outputs.runner_vm_name }}
+          BASE_RUNNER_LABEL: ${{ needs.infra-deploy.outputs.runner_label }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$VM_NAME" || "$VM_NAME" == "null" ]]; then
+            echo "runner VM name output is empty"
+            exit 1
+          fi
+
+          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$(echo "${GITHUB_SHA}" | cut -c1-8)"
+          dynamic_label="${BASE_RUNNER_LABEL}-${suffix}"
+          runner_name="wordgame-${suffix}"
+
+          registration_token="$(curl -fsSL -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runners/registration-token" | jq -er '.token')"
+
+          echo "::add-mask::${registration_token}"
+
+          az vm run-command invoke \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$VM_NAME" \
+            --command-id RunShellScript \
+            --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${dynamic_label}" \
+            --scripts '
+              set -euo pipefail
+              RUNNER_USER="runner"
+              RUNNER_HOME="/home/${RUNNER_USER}"
+              RUNNER_DIR="${RUNNER_HOME}/actions-runner"
+              RUNNER_VERSION="2.327.1"
+
+              if ! id -u "${RUNNER_USER}" >/dev/null 2>&1; then
+                sudo useradd --create-home --shell /bin/bash "${RUNNER_USER}"
+              fi
+
+              sudo apt-get update -y
+              sudo apt-get install -y curl jq tar docker.io
+              sudo systemctl enable --now docker
+              sudo usermod -aG docker "${RUNNER_USER}"
+
+              sudo mkdir -p "${RUNNER_DIR}"
+              sudo chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
+
+              if [[ ! -f "${RUNNER_DIR}/config.sh" ]]; then
+                ARCH_RAW="$(uname -m)"
+                if [[ "${ARCH_RAW}" == "x86_64" ]]; then
+                  ARCH="x64"
+                elif [[ "${ARCH_RAW}" == "aarch64" || "${ARCH_RAW}" == "arm64" ]]; then
+                  ARCH="arm64"
+                else
+                  echo "Unsupported architecture: ${ARCH_RAW}"
+                  exit 1
+                fi
+
+                sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && curl -fsSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz && tar xzf actions-runner.tar.gz"
+                sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && ./bin/installdependencies.sh"
+              fi
+
+              if [[ -f "${RUNNER_DIR}/runner.pid" ]]; then
+                old_pid="$(cat "${RUNNER_DIR}/runner.pid" || true)"
+                if [[ -n "${old_pid}" ]] && kill -0 "${old_pid}" >/dev/null 2>&1; then
+                  kill "${old_pid}" || true
+                fi
+              fi
+
+              sudo -u "${RUNNER_USER}" bash -lc "cd \"${RUNNER_DIR}\" && rm -f .runner .credentials .credentials_rsaparams runner.pid && ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --ephemeral --replace && nohup ./run.sh > runner.log 2>&1 < /dev/null & echo \$! > runner.pid"
+            '
+
+          runner_online=""
+          for _ in {1..60}; do
+            runner_online="$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" \
+              | jq -r --arg lbl "$dynamic_label" '.runners[] | select(any(.labels[]?; .name == $lbl)) | select(.status == "online") | .name' \
+              | head -n 1)"
+
+            if [[ -n "$runner_online" ]]; then
+              break
+            fi
+
+            sleep 5
+          done
+
+          if [[ -z "$runner_online" ]]; then
+            echo "Runner with label ${dynamic_label} did not come online in time"
+            exit 1
+          fi
+
+          echo "runner_label=${dynamic_label}" >> "$GITHUB_OUTPUT"
+
+  deploy-apps:
+    name: Deploy apps
+    runs-on:
+      - self-hosted
+      - ${{ needs.prepare-runner.outputs.runner_label }}
+    needs:
+      - detect-changes
+      - infra-deploy
+      - prepare-runner
+    if: needs.infra-deploy.result == 'success' && needs.prepare-runner.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -207,7 +344,7 @@ jobs:
             ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
           fi
           if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
-            echo "Invalid ACR name resolved for deploy-web: $ACR_NAME"
+            echo "Invalid ACR name resolved for deploy-apps: $ACR_NAME"
             exit 1
           fi
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
@@ -227,7 +364,11 @@ jobs:
             echo "Missing AcrPush on ACR scope for OIDC principal."
             exit 1
           fi
+      - name: Docker login to ACR
+        run: az acr login --name "$ACR_NAME"
+
       - name: Build and push web image
+        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web)
         env:
           IMAGE_TAG: ${{ github.sha }}
           VITE_ENTRA_CLIENT_ID: ${{ vars.VITE_ENTRA_CLIENT_ID }}
@@ -236,17 +377,43 @@ jobs:
           VITE_ENTRA_POST_LOGOUT_REDIRECT_URI: ${{ vars.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI }}
           VITE_ENTRA_SCOPES: ${{ vars.VITE_ENTRA_SCOPES }}
         run: |
-          az acr build \
-            --registry "${ACR_NAME}" \
-            --image "web:${IMAGE_TAG}" \
-            --file apps/web/Dockerfile \
+          docker build \
+            -f apps/web/Dockerfile \
             --build-arg VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID}" \
             --build-arg VITE_ENTRA_AUTHORITY="${VITE_ENTRA_AUTHORITY}" \
             --build-arg VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI}" \
             --build-arg VITE_ENTRA_POST_LOGOUT_REDIRECT_URI="${VITE_ENTRA_POST_LOGOUT_REDIRECT_URI}" \
             --build-arg VITE_ENTRA_SCOPES="${VITE_ENTRA_SCOPES}" \
+            -t "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" \
             .
+          docker push "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
+
+      - name: Build and push api image
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f apps/api/Dockerfile -t "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" .
+          docker push "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
+
+      - name: Build and push agent image
+        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f apps/agent/Dockerfile -t "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}" .
+          docker push "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
+
+      - name: Build and push WAF image
+        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf)
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f apps/waf/Dockerfile -t "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}" apps/waf
+          docker push "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
+
       - name: Configure web registry credentials
+        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
@@ -254,69 +421,17 @@ jobs:
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+
       - name: Update web container app
+        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
           IMAGE_TAG: ${{ github.sha }}
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
 
-  deploy-api:
-    name: Deploy api app
-    runs-on: ubuntu-latest
-    needs:
-      - detect-changes
-      - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api))
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Ensure Container Apps extension
-        run: az extension add --name containerapp --upgrade
-      - name: Resolve ACR metadata
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
-        run: |
-          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
-          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
-            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
-          fi
-          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
-            echo "Invalid ACR name resolved for deploy-api: $ACR_NAME"
-            exit 1
-          fi
-          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
-          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
-      - name: Log OIDC ACR RBAC
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        run: |
-          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
-          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
-          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
-          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
-          echo "ACR RBAC roles at scope:"
-          printf '%s\n' "$ROLE_LIST"
-          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
-            echo "Missing AcrPush on ACR scope for OIDC principal."
-            exit 1
-          fi
-      - name: Build and push api image
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          az acr build \
-            --registry "${ACR_NAME}" \
-            --image "api:${IMAGE_TAG}" \
-            --file apps/api/Dockerfile \
-            .
       - name: Configure api registry credentials
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
@@ -324,7 +439,9 @@ jobs:
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+
       - name: Update api container app
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
@@ -344,62 +461,8 @@ jobs:
             ENTRA_REQUIRED_SCOPE="${ENTRA_REQUIRED_SCOPE}" \
             ENTRA_JWKS_URI="${ENTRA_JWKS_URI}"
 
-  deploy-agent:
-    name: Deploy agent app
-    runs-on: ubuntu-latest
-    needs:
-      - detect-changes
-      - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent))
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Ensure Container Apps extension
-        run: az extension add --name containerapp --upgrade
-      - name: Resolve ACR metadata
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
-        run: |
-          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
-          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
-            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
-          fi
-          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
-            echo "Invalid ACR name resolved for deploy-agent: $ACR_NAME"
-            exit 1
-          fi
-          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
-          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
-      - name: Log OIDC ACR RBAC
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        run: |
-          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
-          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
-          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
-          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
-          echo "ACR RBAC roles at scope:"
-          printf '%s\n' "$ROLE_LIST"
-          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
-            echo "Missing AcrPush on ACR scope for OIDC principal."
-            exit 1
-          fi
-      - name: Build and push agent image
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          az acr build \
-            --registry "${ACR_NAME}" \
-            --image "agent:${IMAGE_TAG}" \
-            --file apps/agent/Dockerfile \
-            .
       - name: Configure agent registry credentials
+        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
@@ -407,69 +470,17 @@ jobs:
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+
       - name: Update agent container app
+        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
           IMAGE_TAG: ${{ github.sha }}
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
 
-  deploy-waf:
-    name: Deploy WAF app
-    runs-on: ubuntu-latest
-    needs:
-      - detect-changes
-      - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf))
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Ensure Container Apps extension
-        run: az extension add --name containerapp --upgrade
-      - name: Resolve ACR metadata
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
-        run: |
-          ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
-          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
-            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
-          fi
-          if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
-            echo "Invalid ACR name resolved for deploy-waf: $ACR_NAME"
-            exit 1
-          fi
-          ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
-          echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
-          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
-      - name: Log OIDC ACR RBAC
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        run: |
-          OIDC_OBJECT_ID="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
-          ACR_ID="$(az acr show --name "$ACR_NAME" --query id -o tsv)"
-          echo "OIDC service principal object id: $OIDC_OBJECT_ID"
-          ROLE_LIST="$(az role assignment list --assignee-object-id "$OIDC_OBJECT_ID" --scope "$ACR_ID" --query "[].roleDefinitionName" -o tsv | sort -u)"
-          echo "ACR RBAC roles at scope:"
-          printf '%s\n' "$ROLE_LIST"
-          if ! printf '%s\n' "$ROLE_LIST" | grep -qx "AcrPush"; then
-            echo "Missing AcrPush on ACR scope for OIDC principal."
-            exit 1
-          fi
-      - name: Build and push WAF image
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          az acr build \
-            --registry "${ACR_NAME}" \
-            --image "waf:${IMAGE_TAG}" \
-            --file apps/waf/Dockerfile \
-            apps/waf
       - name: Configure WAF registry credentials
+        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
@@ -477,7 +488,9 @@ jobs:
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+
       - name: Update WAF container app
+        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf)
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
