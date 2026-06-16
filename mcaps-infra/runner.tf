@@ -161,14 +161,13 @@ resource "azurerm_linux_virtual_machine" "runner" {
   disable_password_authentication = false
   network_interface_ids           = [azurerm_network_interface.runner[0].id]
   tags                            = local.common_tags
-  user_data = var.github_runner_token != "" ? base64encode(format("%s\nexport GH_TOKEN='%s'\nexport RUNNER_LABEL_VALUE='%s'\n%s",
+  user_data = base64encode(format("%s\nexport RUNNER_LABEL_VALUE='%s'\n%s",
     "#!/bin/bash",
-    var.github_runner_token,
     var.runner_label,
     join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) :
       line == "#!/bin/bash" ? "" : "${line}\n"
     ])
-  )) : null
+  ))
 
   identity {
     type         = "UserAssigned"
@@ -193,11 +192,6 @@ resource "azurerm_linux_virtual_machine" "runner" {
   ]
 
   lifecycle {
-    precondition {
-      condition     = !var.enable_self_hosted_runner || trimspace(var.github_runner_token) != ""
-      error_message = "github_runner_token must be set when enable_self_hosted_runner is true."
-    }
-
     # The VM carries a second UAMI injected by the management subscription
     # (for Azure Monitor Agent). TF only owns the spoke UAMI; ignoring
     # identity drift prevents a 30-45 min ARM timeout on every apply.

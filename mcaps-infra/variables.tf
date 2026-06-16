@@ -226,13 +226,6 @@ variable "runner_label" {
   default     = "wordgame-spoke"
 }
 
-variable "github_runner_token" {
-  type        = string
-  sensitive   = true
-  description = "GitHub PAT for registering the self-hosted runner (requires repo admin rights such as repo + admin:org_hook)."
-  default     = ""
-}
-
 variable "use_remote_gateways" {
   type        = bool
   description = "Allow the spoke to use the hub gateway."
