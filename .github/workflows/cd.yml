@@ -269,6 +269,11 @@ jobs:
                 sudo sh /tmp/get-docker.sh
               fi
 
+              if ! command -v az >/dev/null 2>&1; then
+                curl -fsSL https://aka.ms/InstallAzureCLIDeb -o /tmp/install-azcli.sh
+                sudo bash /tmp/install-azcli.sh
+              fi
+
               sudo systemctl enable --now docker
               sudo usermod -aG docker "${RUNNER_USER}"
 
