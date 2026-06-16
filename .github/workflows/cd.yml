@@ -526,7 +526,10 @@ jobs:
       - infra-deploy
       - prepare-runner
       - deploy-apps
-    if: always() && needs.prepare-runner.result != 'skipped'
+    # Disabled at user request: keep the self-hosted runner VM running between
+    # CD invocations to speed up iteration. Re-enable by removing the `false &&`
+    # guard (or set repo variable RUNNER_AUTO_DEALLOCATE to switch on later).
+    if: false && always() && needs.prepare-runner.result != 'skipped'
     steps:
       - uses: azure/login@v2
         with:
