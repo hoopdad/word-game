@@ -107,6 +107,11 @@ resource "azurerm_linux_virtual_machine" "runner" {
   network_interface_ids           = [azurerm_network_interface.runner[0].id]
   tags                            = local.common_tags
 
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [module.uami.resource_id]
+  }
+
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"

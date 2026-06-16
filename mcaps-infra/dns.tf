@@ -12,6 +12,21 @@ locals {
   }
 }
 
+# Link the spoke VNet to every hub private DNS zone so private endpoints in
+# the spoke (ACR, Key Vault, Cosmos, Storage, etc.) resolve correctly from
+# within the spoke, including from the self-hosted runner VM.
+resource "azurerm_private_dns_zone_virtual_network_link" "hub_to_spoke" {
+  for_each = toset(var.private_dns_zone_names)
+
+  provider              = azurerm.hub
+  name                  = "mikeo-lab-infra-vnet-${each.value}-link"
+  resource_group_name   = var.hub_resource_group_name
+  private_dns_zone_name = each.value
+  virtual_network_id    = azurerm_virtual_network.spoke.id
+  registration_enabled  = false
+  tags                  = local.common_tags
+}
+
 # Internal Container Apps environment default-domain zone. Linked to the spoke
 # VNet so the private WAF environment can resolve the internal app FQDNs.
 resource "azurerm_private_dns_zone" "aca_internal" {
@@ -58,4 +73,22 @@ resource "azurerm_private_dns_a_record" "waf_internal_wildcard" {
   resource_group_name = azurerm_resource_group.spoke.name
   ttl                 = 300
   records             = [module.waf_env.static_ip_address]
+}
+
+# Import blocks for hub DNS VNet links created manually before Terraform managed them.
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.hub_to_spoke["privatelink.azurecr.io"]
+  id = "/subscriptions/0ff111e2-f787-4beb-900b-01bc2c83aec2/resourceGroups/mikeo-lab-rg/providers/Microsoft.Network/privateDnsZones/privatelink.azurecr.io/virtualNetworkLinks/mikeo-lab-infra-vnet-privatelink.azurecr.io-link"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.hub_to_spoke["privatelink.vaultcore.azure.net"]
+  id = "/subscriptions/0ff111e2-f787-4beb-900b-01bc2c83aec2/resourceGroups/mikeo-lab-rg/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net/virtualNetworkLinks/mikeo-lab-infra-vnet-privatelink.vaultcore.azure.net-link"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.hub_to_spoke["privatelink.documents.azure.com"]
+  id = "/subscriptions/0ff111e2-f787-4beb-900b-01bc2c83aec2/resourceGroups/mikeo-lab-rg/providers/Microsoft.Network/privateDnsZones/privatelink.documents.azure.com/virtualNetworkLinks/mikeo-lab-infra-vnet-privatelink.documents.azure.com-link"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.hub_to_spoke["privatelink.blob.core.windows.net"]
+  id = "/subscriptions/0ff111e2-f787-4beb-900b-01bc2c83aec2/resourceGroups/mikeo-lab-rg/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net/virtualNetworkLinks/mikeo-lab-infra-vnet-privatelink.blob.core.windows.net-link"
 }
