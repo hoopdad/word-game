@@ -217,7 +217,7 @@ variable "enable_self_hosted_runner" {
 variable "runner_vm_size" {
   type        = string
   description = "Azure VM size for the self-hosted runner."
-  default     = "Standard_D2s_v5"
+  default     = "Standard_D2s_v4"
 }
 
 variable "runner_label" {
