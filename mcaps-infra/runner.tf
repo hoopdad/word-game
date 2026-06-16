@@ -160,6 +160,11 @@ resource "azurerm_linux_virtual_machine" "runner" {
   ]
 
   lifecycle {
+    precondition {
+      condition     = !var.enable_self_hosted_runner || trimspace(var.github_runner_token) != ""
+      error_message = "github_runner_token must be set when enable_self_hosted_runner is true."
+    }
+
     # The VM carries a second UAMI injected by the management subscription
     # (for Azure Monitor Agent). TF only owns the spoke UAMI; ignoring
     # identity drift prevents a 30-45 min ARM timeout on every apply.

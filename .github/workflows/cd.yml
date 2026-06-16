@@ -200,6 +200,36 @@ jobs:
           echo "runner_vm_name=${RUNNER_VM_NAME}" >> "$GITHUB_OUTPUT"
           echo "runner_label=${RUNNER_LABEL}" >> "$GITHUB_OUTPUT"
 
+  runner-readiness:
+    name: Verify self-hosted runner readiness
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - infra-deploy
+    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Check runner label online in repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_LABEL: ${{ needs.infra-deploy.outputs.runner_label || 'wordgame-spoke' }}
+        run: |
+          set -euo pipefail
+
+          deadline=$((SECONDS + 120))
+          while (( SECONDS < deadline )); do
+            online_with_label_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" | jq -r --arg label "$RUNNER_LABEL" '[.runners[] | select(.status == "online" and any(.labels[]?; .name == $label))] | length')"
+            if [[ "${online_with_label_count}" -gt 0 ]]; then
+              echo "Found ${online_with_label_count} online runner(s) with label '${RUNNER_LABEL}'."
+              exit 0
+            fi
+
+            echo "Waiting for an online self-hosted runner with label '${RUNNER_LABEL}'..."
+            sleep 8
+          done
+
+          echo "::error::No online self-hosted runner with label '${RUNNER_LABEL}' was found within 120 seconds. Verify GH_RUNNER_TOKEN and runner registration."
+          exit 1
+
   deploy-apps:
     name: Deploy apps
     runs-on:
@@ -208,7 +238,8 @@ jobs:
     needs:
       - detect-changes
       - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
+      - runner-readiness
+    if: needs.infra-deploy.result == 'success' && needs.runner-readiness.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
