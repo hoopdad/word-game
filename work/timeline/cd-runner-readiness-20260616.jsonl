@@ -1,0 +1,6 @@
+{"ts":"2026-06-16T18:12:00Z","event":"diagnosis","detail":"CD run 27637922051 deploy-apps queued on self-hosted/wordgame-spoke with runner_id 0 and no registered repo runners."}
+{"ts":"2026-06-16T18:20:00Z","event":"change","detail":"Added Terraform precondition in mcaps-infra/runner.tf requiring github_runner_token when enable_self_hosted_runner is true."}
+{"ts":"2026-06-16T18:21:00Z","event":"change","detail":"Added runner-readiness job in .github/workflows/cd.yml and made deploy-apps depend on readiness success."}
+{"ts":"2026-06-16T18:24:00Z","event":"validation","detail":"terraform -chdir=mcaps-infra validate succeeded; workflow YAML rendered with gh workflow view."}
+{"ts":"2026-06-16T18:26:00Z","event":"validation-warning","detail":"scripts/verify-local.sh failed in apps/web lint due missing ESLint config in current baseline environment."}
+{"ts":"2026-06-16T19:27:00Z","event":"ci-remediation","detail":"CI infra fmt check failed; applied terraform fmt -recursive in mcaps-infra and revalidated successfully."}

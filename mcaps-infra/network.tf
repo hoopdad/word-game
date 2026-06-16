@@ -39,7 +39,7 @@ resource "azapi_resource" "subnet_workload" {
 
   body = {
     properties = {
-      addressPrefix = var.workload_subnet_cidr
+      addressPrefix         = var.workload_subnet_cidr
       defaultOutboundAccess = true
       networkSecurityGroup = {
         id = azurerm_network_security_group.workload.id
