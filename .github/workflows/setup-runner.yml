@@ -1,0 +1,69 @@
+name: Setup Self-Hosted Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup runner on VM
+        env:
+          GH_RUNNER_TOKEN: ${{ secrets.GH_RUNNER_TOKEN }}
+        run: |
+          set -eux
+          
+          # Copy setup script to VM and execute with token
+          az vm run-command invoke \
+            --resource-group MIKEO-LAB-INFRA-RG \
+            --name vm-runner-mikeo-lab-infra \
+            --command-id RunShellScript \
+            --scripts "
+          #!/bin/bash
+          set -eu
+          
+          # Create temporary setup script
+          cat > /tmp/runner-setup.sh << 'EOF'
+          $(cat scripts/setup-self-hosted-runner.sh)
+          EOF
+          
+          # Make executable and run
+          chmod +x /tmp/runner-setup.sh
+          /tmp/runner-setup.sh \"$GH_RUNNER_TOKEN\"
+          "
+      
+      - name: Verify runner registration
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          
+          # Check if runner is now online
+          echo "Checking for online runner with label 'wordgame-spoke'..."
+          
+          for i in {1..30}; do
+            RUNNER=$(gh api repos/hoopdad/word-game/actions/runners \
+              --jq '.runners[] | select(any(.labels[]?; .name == "wordgame-spoke")) | select(.status == "online") | .name' \
+              | head -n 1)
+            
+            if [[ -n "$RUNNER" ]]; then
+              echo "✓ Runner online: $RUNNER"
+              exit 0
+            fi
+            
+            echo "[$i/30] Waiting for runner registration..."
+            sleep 2
+          done
+          
+          echo "⚠️ Runner not yet visible as online (may take a moment)"
+          exit 0
