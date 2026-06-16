@@ -254,7 +254,7 @@ jobs:
             --command-id RunShellScript \
             --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${dynamic_label}" \
             --scripts '
-              set -euo pipefail
+              set -eu
               RUNNER_USER="runner"
               RUNNER_HOME="/home/${RUNNER_USER}"
               RUNNER_DIR="${RUNNER_HOME}/actions-runner"
