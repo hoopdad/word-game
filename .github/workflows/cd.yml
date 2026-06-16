@@ -283,6 +283,8 @@ jobs:
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Docker login to ACR
+        env:
+          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
           ACR_PASS="$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)"
           echo "$ACR_PASS" | docker login "$ACR_LOGIN_SERVER" --username "$ACR_NAME" --password-stdin
@@ -296,6 +298,7 @@ jobs:
           VITE_ENTRA_REDIRECT_URI: ${{ vars.VITE_ENTRA_REDIRECT_URI }}
           VITE_ENTRA_POST_LOGOUT_REDIRECT_URI: ${{ vars.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI }}
           VITE_ENTRA_SCOPES: ${{ vars.VITE_ENTRA_SCOPES }}
+          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
           docker build \
             -f apps/web/Dockerfile \
@@ -312,6 +315,7 @@ jobs:
         if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
         env:
           IMAGE_TAG: ${{ github.sha }}
+          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
           docker build -f apps/api/Dockerfile -t "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" .
           docker push "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
@@ -320,6 +324,7 @@ jobs:
         if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
         env:
           IMAGE_TAG: ${{ github.sha }}
+          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
           docker build -f apps/agent/Dockerfile -t "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}" .
           docker push "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
