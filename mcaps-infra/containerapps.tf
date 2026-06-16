@@ -199,6 +199,21 @@ resource "azurerm_container_app" "waf" {
       cpu    = 0.5
       memory = "1.0Gi"
 
+      startup_probe {
+        transport = "TCP"
+        port      = 80
+      }
+
+      readiness_probe {
+        transport = "TCP"
+        port      = 80
+      }
+
+      liveness_probe {
+        transport = "TCP"
+        port      = 80
+      }
+
       env {
         name  = "WEB_UPSTREAM"
         value = azurerm_container_app.web.ingress[0].fqdn
