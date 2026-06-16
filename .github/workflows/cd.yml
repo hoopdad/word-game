@@ -237,9 +237,20 @@ jobs:
             exit 1
           fi
 
-          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$(echo "${GITHUB_SHA}" | cut -c1-8)"
-          dynamic_label="${BASE_RUNNER_LABEL}-${suffix}"
-          runner_name="wordgame-${suffix}"
+          runner_label="${BASE_RUNNER_LABEL}"
+          runner_name="wordgame-${VM_NAME}"
+
+          existing_runner="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" \
+            | jq -r --arg lbl "$runner_label" '.runners[] | select(any(.labels[]?; .name == $lbl)) | select(.status == "online") | .name' \
+            | head -n 1)"
+
+          if [[ -n "$existing_runner" ]]; then
+            echo "runner_label=${runner_label}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           registration_token="$(curl -fsSL -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -268,7 +279,7 @@ jobs:
                 --name "$VM_NAME" \
                 --command-id RunShellScript \
                 --no-wait \
-                --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${dynamic_label}" \
+                --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${runner_label}" \
                 --scripts '
               set -eu
               RUNNER_USER="runner"
@@ -310,7 +321,7 @@ jobs:
                 sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && curl -fsSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz && tar xzf actions-runner.tar.gz"
               fi
 
-              sudo -u "${RUNNER_USER}" bash -lc "cd \"${RUNNER_DIR}\" && rm -f .runner .credentials .credentials_rsaparams && ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --ephemeral --replace"
+              sudo -u "${RUNNER_USER}" bash -lc "cd \"${RUNNER_DIR}\" && rm -f .runner .credentials .credentials_rsaparams && ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --replace"
               "${RUNNER_DIR}/svc.sh" stop || true
               "${RUNNER_DIR}/svc.sh" uninstall || true
               "${RUNNER_DIR}/svc.sh" install "${RUNNER_USER}"
@@ -335,7 +346,7 @@ jobs:
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" \
-              | jq -r --arg lbl "$dynamic_label" '.runners[] | select(any(.labels[]?; .name == $lbl)) | select(.status == "online") | .name' \
+              | jq -r --arg lbl "$runner_label" '.runners[] | select(any(.labels[]?; .name == $lbl)) | select(.status == "online") | .name' \
               | head -n 1)"
 
             if [[ -n "$runner_online" ]]; then
@@ -346,11 +357,11 @@ jobs:
           done
 
           if [[ -z "$runner_online" ]]; then
-            echo "Runner with label ${dynamic_label} did not come online in time"
+            echo "Runner with label ${runner_label} did not come online in time"
             exit 1
           fi
 
-          echo "runner_label=${dynamic_label}" >> "$GITHUB_OUTPUT"
+          echo "runner_label=${runner_label}" >> "$GITHUB_OUTPUT"
 
   deploy-apps:
     name: Deploy apps
