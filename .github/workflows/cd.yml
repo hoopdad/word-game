@@ -294,14 +294,16 @@ jobs:
                 sudo -u "${RUNNER_USER}" bash -lc "cd ${RUNNER_DIR} && curl -fsSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${ARCH}-${RUNNER_VERSION}.tar.gz && tar xzf actions-runner.tar.gz"
               fi
 
-              if [ -f "${RUNNER_DIR}/runner.pid" ]; then
-                old_pid="$(cat "${RUNNER_DIR}/runner.pid" || true)"
-                if [ -n "${old_pid}" ] && kill -0 "${old_pid}" >/dev/null 2>&1; then
-                  kill "${old_pid}" || true
-                fi
-              fi
-
-              sudo -u "${RUNNER_USER}" bash -lc "cd \"${RUNNER_DIR}\" && rm -f .runner .credentials .credentials_rsaparams runner.pid && ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --ephemeral --replace && nohup ./run.sh > runner.log 2>&1 < /dev/null & echo \$! > runner.pid"
+              # config.sh must complete before run.sh starts; background only run.sh.
+              # runner.pid is not used (ephemeral runners exit after one job anyway).
+              sudo -u "${RUNNER_USER}" bash -lc "
+                set -e
+                cd \"${RUNNER_DIR}\"
+                rm -f .runner .credentials .credentials_rsaparams
+                ./config.sh --unattended --url \"https://github.com/${repo}\" --token \"${token}\" --name \"${runner_name}\" --labels \"self-hosted,${runner_label}\" --ephemeral --replace
+                nohup ./run.sh >> runner.log 2>&1 &
+                disown
+              "
             '
 
           runner_online=""
