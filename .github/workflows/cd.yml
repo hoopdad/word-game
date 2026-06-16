@@ -144,11 +144,17 @@ jobs:
         run: terraform -chdir=mcaps-infra validate
       - name: Break stale state lease (safe pre-apply)
         run: |
-          az storage blob lease break \
-            --account-name "${TF_STATE_SA}" \
-            --container-name "${TF_STATE_CONTAINER}" \
-            --blob-name "tfstate/${TF_STATE_KEY}" \
-            --auth-mode login >/dev/null 2>&1 || true
+          set +e
+          for BLOB_NAME in "tfstate/${TF_STATE_KEY}" "${TF_STATE_KEY}"; do
+            echo "Attempting stale lease break for blob: ${BLOB_NAME}"
+            az storage blob lease break \
+              --account-name "${TF_STATE_SA}" \
+              --container-name "${TF_STATE_CONTAINER}" \
+              --blob-name "${BLOB_NAME}" \
+              --auth-mode login
+          done
+          set -e
+          sleep 10
       - name: Terraform apply
         run: |
           set -o pipefail
