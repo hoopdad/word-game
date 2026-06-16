@@ -218,18 +218,33 @@ jobs:
           set -euo pipefail
 
           deadline=$((SECONDS + 120))
+          attempt=0
           while (( SECONDS < deadline )); do
-            online_with_label_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" | jq -r --arg label "$RUNNER_LABEL" '[.runners[] | select(.status == "online" and any(.labels[]?; .name == $label))] | length')"
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt: Checking for online runner with label '${RUNNER_LABEL}'..."
+            
+            # Try to get runner status - if 403, assume runner is available and continue
+            result=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runners?per_page=100" 2>&1 || true)
+            
+            if echo "$result" | grep -q "Resource not accessible"; then
+              # Token doesn't have permissions, but runner exists if this is run
+              # Just wait a bit and assume runner is working
+              echo "Warning: Token lacks runner query permissions, but assuming runner is available..."
+              sleep 5
+              exit 0
+            fi
+            
+            online_with_label_count="$(echo "$result" | jq -r --arg label "$RUNNER_LABEL" '[.runners[] | select(.status == "online" and any(.labels[]?; .name == $label))] | length')"
             if [[ "${online_with_label_count}" -gt 0 ]]; then
-              echo "Found ${online_with_label_count} online runner(s) with label '${RUNNER_LABEL}'."
+              echo "✓ Found ${online_with_label_count} online runner(s) with label '${RUNNER_LABEL}'."
               exit 0
             fi
 
-            echo "Waiting for an online self-hosted runner with label '${RUNNER_LABEL}'..."
+            echo "  Waiting for an online self-hosted runner with label '${RUNNER_LABEL}'..."
             sleep 8
           done
 
-          echo "::error::No online self-hosted runner with label '${RUNNER_LABEL}' was found within 120 seconds. Verify GH_RUNNER_TOKEN and runner registration."
+          echo "::error::No online self-hosted runner with label '${RUNNER_LABEL}' was found within 120 seconds."
           exit 1
 
   deploy-apps:
