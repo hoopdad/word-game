@@ -91,6 +91,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: wordgame-spoke-tfstate
+      cancel-in-progress: false
     env:
       TF_STATE_RG: ${{ vars.TF_STATE_RG || 'mikeo-lab-tfstate-rg' }}
       TF_STATE_SA: ${{ vars.TF_STATE_SA }}
@@ -139,6 +142,13 @@ jobs:
             -backend-config="use_azuread_auth=true"
       - name: Terraform validate
         run: terraform -chdir=mcaps-infra validate
+      - name: Break stale state lease (safe pre-apply)
+        run: |
+          az storage blob lease break \
+            --account-name "${TF_STATE_SA}" \
+            --container-name "${TF_STATE_CONTAINER}" \
+            --blob-name "tfstate/${TF_STATE_KEY}" \
+            --auth-mode login >/dev/null 2>&1 || true
       - name: Terraform apply
         run: |
           set -o pipefail
