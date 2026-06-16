@@ -48,9 +48,10 @@ resource "azapi_resource" "subnet_workload" {
 }
 
 resource "azapi_resource" "subnet_pep" {
-  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
-  name      = "pep-subnet"
-  parent_id = azurerm_virtual_network.spoke.id
+  type       = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name       = "pep-subnet"
+  parent_id  = azurerm_virtual_network.spoke.id
+  depends_on = [azapi_resource.subnet_workload]
 
   body = {
     properties = {
@@ -64,9 +65,10 @@ resource "azapi_resource" "subnet_pep" {
 }
 
 resource "azapi_resource" "subnet_aca" {
-  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
-  name      = "aca-subnet"
-  parent_id = azurerm_virtual_network.spoke.id
+  type       = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name       = "aca-subnet"
+  parent_id  = azurerm_virtual_network.spoke.id
+  depends_on = [azapi_resource.subnet_pep]
 
   body = {
     properties = {
@@ -87,9 +89,10 @@ resource "azapi_resource" "subnet_aca" {
 }
 
 resource "azapi_resource" "subnet_waf" {
-  type      = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
-  name      = "waf-subnet"
-  parent_id = azurerm_virtual_network.spoke.id
+  type       = "Microsoft.Network/virtualNetworks/subnets@2023-11-01"
+  name       = "waf-subnet"
+  parent_id  = azurerm_virtual_network.spoke.id
+  depends_on = [azapi_resource.subnet_aca]
 
   body = {
     properties = {
