@@ -33,6 +33,13 @@ else
   echo "Storage account ${SA} already exists."
 fi
 
+# Ensure public network access is enabled (data plane needed from GitHub-hosted runners).
+az storage account update \
+  --name "$SA" \
+  --resource-group "$RG" \
+  --public-network-access Enabled \
+  --output none
+
 echo "Ensuring container ${CONTAINER}..."
 # Prefer Entra auth; some subscriptions block key-based auth by policy.
 if az storage container create \
