@@ -1,7 +1,7 @@
 FROM owasp/modsecurity-crs:nginx-alpine
 
-# Remove the default single-backend proxy template; we use path-based routing.
-RUN rm -f /etc/nginx/templates/default.conf.template 2>/dev/null || true
+# Replace the OWASP single-backend template with our path-based multi-backend config.
+# The OWASP nginx image stores templates under conf.d/ (not directly under templates/).
+RUN rm -f /etc/nginx/templates/conf.d/default.conf.template
 
-# Our multi-backend routing template processed by envsubst at startup.
-COPY default.conf.template /etc/nginx/templates/default.conf.template
+COPY default.conf.template /etc/nginx/templates/conf.d/default.conf.template

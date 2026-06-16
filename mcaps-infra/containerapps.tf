@@ -38,7 +38,7 @@ module "waf_env" {
 
   zone_redundant = false
 
-  # Policy requires private-only ingress.
+  # external_enabled=true on an internal (ILB) env exposes via the VNet-private ILB IP — not the internet.
   vnet_configuration = {
     infrastructure_subnet_id = azapi_resource.subnet_waf.id
     internal                 = true
@@ -91,7 +91,7 @@ resource "azurerm_container_app" "web" {
   }
 
   ingress {
-    external_enabled = false
+    external_enabled = true
     target_port      = var.container_port
 
     traffic_weight {
@@ -136,7 +136,7 @@ resource "azurerm_container_app" "api" {
   }
 
   ingress {
-    external_enabled = false
+    external_enabled = true
     target_port      = var.container_port
 
     traffic_weight {
@@ -183,7 +183,7 @@ resource "azurerm_container_app" "waf" {
   revision_mode                = "Single"
   workload_profile_name        = "Consumption"
   tags                         = local.common_tags
-  depends_on                   = [azurerm_private_dns_a_record.aca_internal_wildcard]
+  depends_on                   = [azurerm_private_dns_a_record.aca_ext_wildcard]
 
   lifecycle {
     ignore_changes = [template[0].container[0].image]
@@ -246,7 +246,7 @@ resource "azurerm_container_app" "waf" {
   }
 
   ingress {
-    external_enabled = false
+    external_enabled = true
     target_port      = 8080
 
     traffic_weight {

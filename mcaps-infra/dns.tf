@@ -27,8 +27,8 @@ resource "azurerm_private_dns_zone_virtual_network_link" "hub_to_spoke" {
   tags                  = local.common_tags
 }
 
-# Internal Container Apps environment default-domain zone. Linked to the spoke
-# VNet so the private WAF environment can resolve the internal app FQDNs.
+# Legacy internal-subdomain zones (external_enabled=false format). Kept for reference.
+# Apps now use external_enabled=true, so the root-domain zones below are the active path.
 resource "azurerm_private_dns_zone" "aca_internal" {
   name                = "internal.${module.aca_env.default_domain}"
   resource_group_name = azurerm_resource_group.spoke.name
@@ -43,8 +43,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "aca_internal" {
   registration_enabled  = false
 }
 
-# Hub VNet link so hub DNS resolver (and VPN-connected workstations) can
-# resolve internal ACA app FQDNs in this zone.
 resource "azurerm_private_dns_zone_virtual_network_link" "aca_internal_hub" {
   name                  = "mikeo-lab-hub-vnet-internal.wonderfulsea-3a2d2678.centralus-link"
   resource_group_name   = azurerm_resource_group.spoke.name
@@ -61,8 +59,39 @@ resource "azurerm_private_dns_a_record" "aca_internal_wildcard" {
   records             = [module.aca_env.static_ip_address]
 }
 
-# WAF environment default-domain zone for private ingress FQDNs
-# (e.g. ca-waf-<prefix>.internal.<env-default-domain>).
+# Root-domain ACA env zone — used when ingress.external_enabled=true on an internal ACA env.
+# FQDN format: <app>.<env-default-domain> (no .internal. prefix).
+resource "azurerm_private_dns_zone" "aca_ext" {
+  name                = module.aca_env.default_domain
+  resource_group_name = azurerm_resource_group.spoke.name
+  tags                = local.common_tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "aca_ext_spoke" {
+  name                  = "lnk-aca-spoke"
+  resource_group_name   = azurerm_resource_group.spoke.name
+  private_dns_zone_name = azurerm_private_dns_zone.aca_ext.name
+  virtual_network_id    = azurerm_virtual_network.spoke.id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "aca_ext_hub" {
+  name                  = "lnk-aca-hub"
+  resource_group_name   = azurerm_resource_group.spoke.name
+  private_dns_zone_name = azurerm_private_dns_zone.aca_ext.name
+  virtual_network_id    = data.azurerm_virtual_network.hub.id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_a_record" "aca_ext_wildcard" {
+  name                = "*"
+  zone_name           = azurerm_private_dns_zone.aca_ext.name
+  resource_group_name = azurerm_resource_group.spoke.name
+  ttl                 = 300
+  records             = [module.aca_env.static_ip_address]
+}
+
+# Legacy WAF internal-subdomain zone.
 resource "azurerm_private_dns_zone" "waf_internal" {
   name                = "internal.${module.waf_env.default_domain}"
   resource_group_name = azurerm_resource_group.spoke.name
@@ -77,8 +106,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "waf_internal" {
   registration_enabled  = false
 }
 
-# Hub VNet link so hub DNS resolver (and VPN-connected workstations) can
-# resolve the WAF ingress FQDN.
 resource "azurerm_private_dns_zone_virtual_network_link" "waf_internal_hub" {
   name                  = "mikeo-lab-hub-vnet-internal.delightfulbush-d019f7e0.central-link"
   resource_group_name   = azurerm_resource_group.spoke.name
@@ -90,6 +117,38 @@ resource "azurerm_private_dns_zone_virtual_network_link" "waf_internal_hub" {
 resource "azurerm_private_dns_a_record" "waf_internal_wildcard" {
   name                = "*"
   zone_name           = azurerm_private_dns_zone.waf_internal.name
+  resource_group_name = azurerm_resource_group.spoke.name
+  ttl                 = 300
+  records             = [module.waf_env.static_ip_address]
+}
+
+# Root-domain WAF env zone — used when ingress.external_enabled=true.
+# FQDN format: <app>.<waf-env-default-domain>.
+resource "azurerm_private_dns_zone" "waf_ext" {
+  name                = module.waf_env.default_domain
+  resource_group_name = azurerm_resource_group.spoke.name
+  tags                = local.common_tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "waf_ext_spoke" {
+  name                  = "lnk-waf-spoke"
+  resource_group_name   = azurerm_resource_group.spoke.name
+  private_dns_zone_name = azurerm_private_dns_zone.waf_ext.name
+  virtual_network_id    = azurerm_virtual_network.spoke.id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "waf_ext_hub" {
+  name                  = "lnk-waf-hub"
+  resource_group_name   = azurerm_resource_group.spoke.name
+  private_dns_zone_name = azurerm_private_dns_zone.waf_ext.name
+  virtual_network_id    = data.azurerm_virtual_network.hub.id
+  registration_enabled  = false
+}
+
+resource "azurerm_private_dns_a_record" "waf_ext_wildcard" {
+  name                = "*"
+  zone_name           = azurerm_private_dns_zone.waf_ext.name
   resource_group_name = azurerm_resource_group.spoke.name
   ttl                 = 300
   records             = [module.waf_env.static_ip_address]
@@ -122,3 +181,39 @@ import {
   to = azurerm_private_dns_zone_virtual_network_link.waf_internal_hub
   id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/internal.delightfulbush-d019f7e0.centralus.azurecontainerapps.io/virtualNetworkLinks/mikeo-lab-hub-vnet-internal.delightfulbush-d019f7e0.central-link"
 }
+
+# Import blocks for root-domain ACA/WAF zones and links created manually.
+import {
+  to = azurerm_private_dns_zone.aca_ext
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/wonderfulsea-3a2d2678.centralus.azurecontainerapps.io"
+}
+import {
+  to = azurerm_private_dns_a_record.aca_ext_wildcard
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/wonderfulsea-3a2d2678.centralus.azurecontainerapps.io/A/*"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.aca_ext_spoke
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/wonderfulsea-3a2d2678.centralus.azurecontainerapps.io/virtualNetworkLinks/lnk-aca-spoke"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.aca_ext_hub
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/wonderfulsea-3a2d2678.centralus.azurecontainerapps.io/virtualNetworkLinks/lnk-aca-hub"
+}
+
+import {
+  to = azurerm_private_dns_zone.waf_ext
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/delightfulbush-d019f7e0.centralus.azurecontainerapps.io"
+}
+import {
+  to = azurerm_private_dns_a_record.waf_ext_wildcard
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/delightfulbush-d019f7e0.centralus.azurecontainerapps.io/A/*"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.waf_ext_spoke
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/delightfulbush-d019f7e0.centralus.azurecontainerapps.io/virtualNetworkLinks/lnk-waf-spoke"
+}
+import {
+  to = azurerm_private_dns_zone_virtual_network_link.waf_ext_hub
+  id = "/subscriptions/8a2ded28-6d3b-4ff5-9eee-0056ee08b371/resourceGroups/mikeo-lab-infra-rg/providers/Microsoft.Network/privateDnsZones/delightfulbush-d019f7e0.centralus.azurecontainerapps.io/virtualNetworkLinks/lnk-waf-hub"
+}
+
