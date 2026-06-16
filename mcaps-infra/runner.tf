@@ -57,6 +57,21 @@ resource "azurerm_network_security_rule" "runner_allow_https_outbound" {
   network_security_group_name = azurerm_network_security_group.runner[0].name
 }
 
+resource "azurerm_network_security_rule" "runner_allow_http_outbound" {
+  count                       = var.enable_self_hosted_runner ? 1 : 0
+  name                        = "Allow-HTTP-Outbound"
+  priority                    = 120
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "80"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "Internet"
+  resource_group_name         = azurerm_resource_group.spoke.name
+  network_security_group_name = azurerm_network_security_group.runner[0].name
+}
+
 resource "azurerm_network_security_rule" "runner_deny_all_outbound" {
   count                       = var.enable_self_hosted_runner ? 1 : 0
   name                        = "Deny-All-Outbound"
@@ -118,6 +133,38 @@ resource "azurerm_subnet_route_table_association" "runner" {
   route_table_id = azurerm_route_table.runner[0].id
 }
 
+resource "azurerm_public_ip" "runner_nat" {
+  count               = var.enable_self_hosted_runner ? 1 : 0
+  name                = "pip-nat-runner-${local.spoke_prefix}"
+  location            = var.spoke_region
+  resource_group_name = azurerm_resource_group.spoke.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.common_tags
+}
+
+resource "azurerm_nat_gateway" "runner" {
+  count                   = var.enable_self_hosted_runner ? 1 : 0
+  name                    = "nat-runner-${local.spoke_prefix}"
+  location                = var.spoke_region
+  resource_group_name     = azurerm_resource_group.spoke.name
+  sku_name                = "Standard"
+  idle_timeout_in_minutes = 10
+  tags                    = local.common_tags
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "runner" {
+  count                = var.enable_self_hosted_runner ? 1 : 0
+  nat_gateway_id       = azurerm_nat_gateway.runner[0].id
+  public_ip_address_id = azurerm_public_ip.runner_nat[0].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "runner" {
+  count          = var.enable_self_hosted_runner ? 1 : 0
+  subnet_id      = azapi_resource.subnet_workload.id
+  nat_gateway_id = azurerm_nat_gateway.runner[0].id
+}
+
 resource "azurerm_linux_virtual_machine" "runner" {
   count                           = var.enable_self_hosted_runner ? 1 : 0
   name                            = "vm-runner-${local.spoke_prefix}"
@@ -129,13 +176,13 @@ resource "azurerm_linux_virtual_machine" "runner" {
   disable_password_authentication = false
   network_interface_ids           = [azurerm_network_interface.runner[0].id]
   tags                            = local.common_tags
-  user_data = var.github_runner_token != "" ? base64encode(format("%s\nexport GH_TOKEN='%s'\n%s",
+  user_data = base64encode(format("%s\nexport RUNNER_LABEL_VALUE='%s'\n%s",
     "#!/bin/bash",
-    var.github_runner_token,
+    var.runner_label,
     join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) :
       line == "#!/bin/bash" ? "" : "${line}\n"
     ])
-  )) : null
+  ))
 
   identity {
     type         = "UserAssigned"
@@ -160,11 +207,6 @@ resource "azurerm_linux_virtual_machine" "runner" {
   ]
 
   lifecycle {
-    precondition {
-      condition     = !var.enable_self_hosted_runner || trimspace(var.github_runner_token) != ""
-      error_message = "github_runner_token must be set when enable_self_hosted_runner is true."
-    }
-
     # The VM carries a second UAMI injected by the management subscription
     # (for Azure Monitor Agent). TF only owns the spoke UAMI; ignoring
     # identity drift prevents a 30-45 min ARM timeout on every apply.

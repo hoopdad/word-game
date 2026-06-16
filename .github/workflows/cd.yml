@@ -1,9 +1,11 @@
 name: CD
 
 on:
-  push:
+  pull_request:
     branches:
       - main
+    types:
+      - closed
     paths:
       - "apps/**"
       - "packages/**"
@@ -12,32 +14,6 @@ on:
       - ".github/workflows/cd.yml"
       - "package.json"
       - "package-lock.json"
-  workflow_dispatch:
-    inputs:
-      location:
-        description: "Azure region for deployment"
-        required: false
-        default: "centralus"
-      deploy_web:
-        description: "Deploy web service"
-        required: false
-        default: true
-        type: boolean
-      deploy_api:
-        description: "Deploy api service"
-        required: false
-        default: true
-        type: boolean
-      deploy_agent:
-        description: "Deploy agent service"
-        required: false
-        default: true
-        type: boolean
-      deploy_waf:
-        description: "Deploy WAF service"
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   id-token: write
@@ -45,18 +21,18 @@ permissions:
   actions: read
 
 env:
-  AZURE_LOCATION: ${{ inputs.location || vars.AZURE_LOCATION || 'centralus' }}
+  AZURE_LOCATION: ${{ vars.AZURE_LOCATION || 'centralus' }}
   ARM_USE_OIDC: true
   ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_spoke_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_hub_subscription_id: ${{ secrets.AZURE_HUB_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
-  TF_VAR_github_runner_token: ${{ secrets.GH_RUNNER_TOKEN || '' }}
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     outputs:
       web: ${{ steps.filter.outputs.web }}
       api: ${{ steps.filter.outputs.api }}
@@ -92,7 +68,7 @@ jobs:
     name: Deploy infrastructure
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
     concurrency:
       group: wordgame-spoke-tfstate
       cancel-in-progress: false
@@ -208,7 +184,7 @@ jobs:
     needs:
       - detect-changes
       - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
+    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true')
     steps:
       - name: Check runner label online in repository
         env:
@@ -256,7 +232,7 @@ jobs:
       - detect-changes
       - infra-deploy
       - runner-readiness
-    if: needs.infra-deploy.result == 'success' && needs.runner-readiness.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || github.event_name == 'workflow_dispatch')
+    if: needs.infra-deploy.result == 'success' && needs.runner-readiness.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true')
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -282,15 +258,30 @@ jobs:
           ACR_LOGIN_SERVER="$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)"
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
-      - name: Docker login to ACR
+      - name: Preflight ACR creds + infra outputs
         env:
-          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
+          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
+          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
+          WEB_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
+          API_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
+          AGENT_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
+          WAF_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
         run: |
-          ACR_PASS="$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)"
-          echo "$ACR_PASS" | docker login "$ACR_LOGIN_SERVER" --username "$ACR_NAME" --password-stdin
+          set -euo pipefail
+          for v in RESOURCE_GROUP ACR_NAME ACR_LOGIN_SERVER ACR_LOGIN_SERVER_OUTPUT; do
+            [[ -n "${!v:-}" && "${!v}" != "null" ]] || { echo "::error::Missing $v"; exit 1; }
+          done
+          [[ "$ACR_LOGIN_SERVER" == "$ACR_LOGIN_SERVER_OUTPUT" ]] || { echo "::error::ACR login server mismatch"; exit 1; }
+          for v in WEB_APP_NAME API_APP_NAME AGENT_APP_NAME WAF_APP_NAME; do
+            [[ -n "${!v:-}" && "${!v}" != "null" ]] || { echo "::error::Missing infra output $v"; exit 1; }
+          done
+          [[ "$(az acr show --name "$ACR_NAME" --query adminUserEnabled -o tsv)" == "true" ]] || { echo "::error::ACR admin user disabled"; exit 1; }
+          ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
+          ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
+          [[ -n "$ACR_USERNAME" && -n "$ACR_PASSWORD" ]] || { echo "::error::ACR admin creds unavailable"; exit 1; }
 
       - name: Build and push web image
-        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web)
+        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           IMAGE_TAG: ${{ github.sha }}
           VITE_ENTRA_CLIENT_ID: ${{ vars.VITE_ENTRA_CLIENT_ID }}
@@ -298,47 +289,41 @@ jobs:
           VITE_ENTRA_REDIRECT_URI: ${{ vars.VITE_ENTRA_REDIRECT_URI }}
           VITE_ENTRA_POST_LOGOUT_REDIRECT_URI: ${{ vars.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI }}
           VITE_ENTRA_SCOPES: ${{ vars.VITE_ENTRA_SCOPES }}
-          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
-          docker build \
-            -f apps/web/Dockerfile \
+          az acr build \
+            --registry "$ACR_NAME" \
+            --file apps/web/Dockerfile \
+            --image "web:${IMAGE_TAG}" \
             --build-arg VITE_ENTRA_CLIENT_ID="${VITE_ENTRA_CLIENT_ID}" \
             --build-arg VITE_ENTRA_AUTHORITY="${VITE_ENTRA_AUTHORITY}" \
             --build-arg VITE_ENTRA_REDIRECT_URI="${VITE_ENTRA_REDIRECT_URI}" \
             --build-arg VITE_ENTRA_POST_LOGOUT_REDIRECT_URI="${VITE_ENTRA_POST_LOGOUT_REDIRECT_URI}" \
             --build-arg VITE_ENTRA_SCOPES="${VITE_ENTRA_SCOPES}" \
-            -t "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}" \
             .
-          docker push "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
 
       - name: Build and push api image
-        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           IMAGE_TAG: ${{ github.sha }}
-          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
-          docker build -f apps/api/Dockerfile -t "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" .
-          docker push "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}"
+          az acr build --registry "$ACR_NAME" --file apps/api/Dockerfile --image "api:${IMAGE_TAG}" .
 
       - name: Build and push agent image
-        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
+        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           IMAGE_TAG: ${{ github.sha }}
-          PATH: /snap/bin:/usr/local/bin:/usr/bin:/bin
         run: |
-          docker build -f apps/agent/Dockerfile -t "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}" .
-          docker push "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
+          az acr build --registry "$ACR_NAME" --file apps/agent/Dockerfile --image "agent:${IMAGE_TAG}" .
 
       - name: Build and push WAF image
-        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf)
+        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true'
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f apps/waf/Dockerfile -t "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}" apps/waf
-          docker push "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
+          az acr build --registry "$ACR_NAME" --file apps/waf/Dockerfile --image "waf:${IMAGE_TAG}" apps/waf
 
       - name: Configure web registry credentials
-        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web)
+        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
@@ -348,7 +333,7 @@ jobs:
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update web container app
-        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_web)
+        if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
@@ -356,7 +341,7 @@ jobs:
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
 
       - name: Configure api registry credentials
-        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
@@ -366,7 +351,7 @@ jobs:
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update api container app
-        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_api)
+        if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
@@ -387,7 +372,7 @@ jobs:
             ENTRA_JWKS_URI="${ENTRA_JWKS_URI}"
 
       - name: Configure agent registry credentials
-        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
+        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
@@ -397,7 +382,7 @@ jobs:
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update agent container app
-        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_agent)
+        if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
@@ -405,7 +390,7 @@ jobs:
         run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
 
       - name: Configure WAF registry credentials
-        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf)
+        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
@@ -415,7 +400,7 @@ jobs:
           az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update WAF container app
-        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || (github.event_name == 'workflow_dispatch' && inputs.deploy_waf)
+        if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true'
         env:
           RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
           CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}

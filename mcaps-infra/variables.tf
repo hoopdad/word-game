@@ -222,15 +222,8 @@ variable "runner_vm_size" {
 
 variable "runner_label" {
   type        = string
-  description = "Base label used when registering ephemeral self-hosted runners."
+  description = "Base label used when registering the persistent self-hosted runner."
   default     = "wordgame-spoke"
-}
-
-variable "github_runner_token" {
-  type        = string
-  sensitive   = true
-  description = "GitHub personal access token for registering the self-hosted runner (requires 'admin:org' scope)."
-  default     = ""
 }
 
 variable "use_remote_gateways" {
