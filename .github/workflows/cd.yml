@@ -267,6 +267,7 @@ jobs:
                 --resource-group "$RESOURCE_GROUP" \
                 --name "$VM_NAME" \
                 --command-id RunShellScript \
+                --no-wait \
                 --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${dynamic_label}" \
                 --scripts '
               set -eu
@@ -327,7 +328,7 @@ jobs:
           fi
 
           runner_online=""
-          for _ in {1..60}; do
+          for _ in {1..120}; do
             runner_online="$(curl -fsSL \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
