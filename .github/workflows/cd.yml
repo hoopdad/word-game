@@ -259,12 +259,16 @@ jobs:
             sleep 5
           done
 
-          az vm run-command invoke \
-            --resource-group "$RESOURCE_GROUP" \
-            --name "$VM_NAME" \
-            --command-id RunShellScript \
-            --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${dynamic_label}" \
-            --scripts '
+          # Retry the run-command invocation: ARM returns Conflict when a previous
+          # run-command extension execution on the VM is still finishing.
+          run_cmd_ok=""
+          for attempt in 1 2 3 4 5 6; do
+            if az vm run-command invoke \
+                --resource-group "$RESOURCE_GROUP" \
+                --name "$VM_NAME" \
+                --command-id RunShellScript \
+                --parameters "repo=${GITHUB_REPOSITORY}" "token=${registration_token}" "runner_name=${runner_name}" "runner_label=${dynamic_label}" \
+                --scripts '
               set -eu
               RUNNER_USER="runner"
               RUNNER_HOME="/home/${RUNNER_USER}"
@@ -310,7 +314,17 @@ jobs:
               "${RUNNER_DIR}/svc.sh" uninstall || true
               "${RUNNER_DIR}/svc.sh" install "${RUNNER_USER}"
               "${RUNNER_DIR}/svc.sh" start
-            '
+            '; then
+              run_cmd_ok="yes"
+              break
+            fi
+            echo "az vm run-command invoke attempt ${attempt} failed; sleeping before retry..."
+            sleep $((attempt * 20))
+          done
+          if [ -z "${run_cmd_ok}" ]; then
+            echo "az vm run-command invoke failed after retries"
+            exit 1
+          fi
 
           runner_online=""
           for _ in {1..60}; do
