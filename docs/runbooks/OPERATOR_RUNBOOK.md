@@ -12,7 +12,9 @@ This is the canonical quality-gates runbook for this repository.
 - Reconcile agent-reported status vs SQL todo status before each new dispatch cycle.
 - Check out or create a feature branch before changing files.
 - Keep repo artifacts under `work/` and use `plan.md` for multi-step tasks.
-- Use `scripts/verify-local.sh` for the standard local check. If it doesn't exist on the first run, create it.
+- Use `scripts/verify-local.sh` or `scripts/ci-run.sh --target all` for the standard local check. If they don't exist on the first run, create them.
+- Use `scripts/cd-infra-apply.sh` for Terraform-backed infra deployment from local environments.
+- Use `scripts/cd-deploy.sh --targets <csv>` for local Docker build/push (`--platform linux/amd64`) and Container Apps rollout (defaults image tag to `git rev-parse --short HEAD`; override with `--image-tag`). Requires Docker and `az acr login` access to the private ACR.
 - Use `scripts/watch-workflow.sh CI pull_request <branch>` to monitor PR CI. If it doesn't exist on the first run, create it.
 - Use `scripts/watch-workflow.sh CD push main` to monitor post-merge CD. If it doesn't exist on the first run, create it.
 - After local verification, push, open a PR, and monitor the CI workflow.
@@ -64,10 +66,10 @@ Local builds do NOT guarantee CI/CD success. CI runs linting, tests, and deploym
 
 ### Deployment ordering behavior (CD)
 
-- CD workflow (`.github/workflows/cd.yml`) runs on `push` to `main` or manually via `workflow_dispatch`.
+- CD workflow (`.github/workflows/cd.yml`) runs on `push` to `main`.
 - Infrastructure deploy is the first gate and must succeed before any app service deploy starts.
 - App service deploy jobs (`web`, `api`, `agent`) all depend on `infra-deploy`.
-- Default deployment region is `centralus` unless `AZURE_LOCATION` or manual input overrides it.
+- Default deployment region is `centralus` unless `AZURE_LOCATION` overrides it.
 
 ### Post-commit CI/CD verification checklist
 
@@ -129,7 +131,7 @@ done
 - **Path-filter misses**: expected job skipped because changed file pattern did not match
 - **Terraform failures**: provider init/auth/backend issues in `infra` stage
 - **OIDC auth failures**: missing/misconfigured `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, or federated credential subject mismatch
-- **Container deploy failures**: ACR push errors, `az containerapp update` target name/resource-group mismatch
+- **Container deploy failures**: Docker build/push errors, platform mismatch (`--platform linux/amd64` required on arm64 hosts), `az acr login` auth failures, `az containerapp update` target name/resource-group mismatch, `ImagePullUnauthorized` (check UAMI AcrPull role assignment and ACR `network_rule_bypass_option = AzureServices`)
 
 ### Auth remediation playbook (Android app flow)
 

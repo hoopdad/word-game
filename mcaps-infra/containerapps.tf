@@ -28,38 +28,8 @@ module "aca_env" {
   tags             = local.common_tags
 }
 
-module "waf_env" {
-  source  = "Azure/avm-res-app-managedenvironment/azurerm"
-  version = "0.5.0"
-
-  location            = var.spoke_region
-  name                = "cae-waf-${local.spoke_prefix}"
-  resource_group_name = azurerm_resource_group.spoke.name
-
-  zone_redundant = false
-
-  # external_enabled=true on an internal (ILB) env exposes via the VNet-private ILB IP — not the internet.
-  vnet_configuration = {
-    infrastructure_subnet_id = azapi_resource.subnet_waf.id
-    internal                 = true
-  }
-
-  public_network_access = "Disabled"
-
-  log_analytics_workspace = {
-    resource_id = data.azurerm_log_analytics_workspace.hub.id
-  }
-
-  workload_profiles = [
-    {
-      name                  = "Consumption"
-      workload_profile_type = "Consumption"
-    }
-  ]
-
-  enable_telemetry = false
-  tags             = local.common_tags
-}
+# WAF now runs in the main ACA environment to share the same internal DNS domain.
+# This eliminates cross-environment DNS resolution issues.
 
 resource "azurerm_container_app" "web" {
   name                         = "ca-web-${local.spoke_prefix}"
@@ -76,6 +46,11 @@ resource "azurerm_container_app" "web" {
   identity {
     type         = "UserAssigned"
     identity_ids = [module.uami.resource_id]
+  }
+
+  registry {
+    server   = module.acr.resource.login_server
+    identity = module.uami.resource_id
   }
 
   template {
@@ -116,6 +91,11 @@ resource "azurerm_container_app" "api" {
   identity {
     type         = "UserAssigned"
     identity_ids = [module.uami.resource_id]
+  }
+
+  registry {
+    server   = module.acr.resource.login_server
+    identity = module.uami.resource_id
   }
 
   template {
@@ -163,6 +143,11 @@ resource "azurerm_container_app" "agent" {
     identity_ids = [module.uami.resource_id]
   }
 
+  registry {
+    server   = module.acr.resource.login_server
+    identity = module.uami.resource_id
+  }
+
   template {
     min_replicas = 1
     max_replicas = 1
@@ -178,7 +163,7 @@ resource "azurerm_container_app" "agent" {
 
 resource "azurerm_container_app" "waf" {
   name                         = "ca-waf-${local.spoke_prefix}"
-  container_app_environment_id = module.waf_env.resource_id
+  container_app_environment_id = module.aca_env.resource_id
   resource_group_name          = azurerm_resource_group.spoke.name
   revision_mode                = "Single"
   workload_profile_name        = "Consumption"

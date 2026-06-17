@@ -8,12 +8,11 @@ module "acr" {
 
   sku                           = var.acr_sku
   public_network_access_enabled = false
-  export_policy_enabled         = false
+  export_policy_enabled         = true
   zone_redundancy_enabled       = false
-  # Admin user enabled so CD can authenticate the Container Apps registry with
-  # admin credentials (az containerapp registry set). Acceptable for this
-  # private (PE-only) lab registry; switch to UAMI AcrPull once role
-  # assignments are enabled (enable_role_assignments = true).
+  network_rule_bypass_option    = "AzureServices"
+  # Admin user kept enabled as a fallback. Primary pull path uses the UAMI
+  # identity (AcrPull) configured on each Container App's registry block.
   admin_enabled = true
 
 

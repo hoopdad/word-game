@@ -1,0 +1,6 @@
+{"ts":"2026-06-17T00:42:30Z","event":"start","correlation_id":"local-script-cicd-20260616","detail":"Started CI/CD rewrite to script-first local entrypoints for lint/build/push with Terraform and Azure CLI."}
+{"ts":"2026-06-17T00:47:00Z","event":"implementation","correlation_id":"local-script-cicd-20260616","detail":"Added scripts/ci-run.sh, scripts/cd-infra-apply.sh, scripts/cd-deploy.sh and rewired verify-local.sh to ci-run all target."}
+{"ts":"2026-06-17T00:52:00Z","event":"workflow_refactor","correlation_id":"local-script-cicd-20260616","detail":"Replaced inline workflow CI/CD command blocks with wrappers around script entrypoints in ci.yml and cd.yml."}
+{"ts":"2026-06-17T00:54:00Z","event":"docs_update","correlation_id":"local-script-cicd-20260616","detail":"Updated README and OPERATOR_RUNBOOK for local script-first CI/CD operations and workflow wrapper behavior."}
+{"ts":"2026-06-17T00:56:00Z","event":"validation","correlation_id":"local-script-cicd-20260616","detail":"Ran scripts/verify-local.sh successfully after script/workflow rewrites."}
+{"ts":"2026-06-17T00:57:00Z","event":"handoff_state","correlation_id":"local-script-cicd-20260616","detail":"Recorded branch/status/PR state: feature/runner-vm-azcli-cleanup has local modifications and existing PR #20 pending checks."}

@@ -65,18 +65,22 @@ and cross-resource access grants land:
 
 | Flag                       | Effect                                                  |
 | -------------------------- | ------------------------------------------------------- |
-| `enable_role_assignments`  | UAMI role grants (AcrPull, Cosmos, OpenAI) + GitHub OIDC AcrPush on ACR (`az acr build`; push includes pull) |
+| `enable_role_assignments`  | UAMI role grants (AcrPull, Cosmos, OpenAI) + GitHub OIDC AcrPush on ACR. **Required** for MI-based Container App image pulls. |
 | `enable_storage`           | AVM storage account + blob private endpoint             |
 | `enable_openai_resources`  | Azure OpenAI cognitive account                          |
 | `enable_foundry_resources` | AI Foundry project + deployment (azapi)                 |
 | `enable_self_hosted_runner`| Runner networking support in `workload-subnet` (VM is provisioned with Azure CLI) |
 
-> ACR has `admin_enabled = true` so CD can authenticate the Container Apps registry
-> with admin credentials. CD now builds/pushes images from an ephemeral self-hosted
-> runner in the spoke VNet (Docker push path) so ACR public network access can remain
-> disabled. When `enable_role_assignments = true`, Terraform also adds GitHub OIDC
-> `AcrPush` on ACR while keeping existing UAMI-based `AcrPull` behavior unchanged.
-> Disable the admin user once your pipeline fully uses role-based auth.
+> Container Apps pull images using the UAMI managed identity (`AcrPull` role).
+> The `registry` block on each Container App binds the UAMI to ACR, eliminating
+> the need for admin credentials at pull time. CD builds images locally with
+> Docker (`--platform linux/amd64`) and pushes via `az acr login` (caller's
+> Azure identity). The ACR remains private (public network disabled) with
+> `export_policy_enabled = true` and `network_rule_bypass_option = AzureServices`
+> so trusted Azure services can pull through the private endpoint.
+> Set `enable_role_assignments = true` to create the UAMI AcrPull grant.
+> The admin user is kept as a fallback and can be disabled once MI auth is
+> confirmed working end-to-end.
 
 ## Teardown of the legacy stack
 

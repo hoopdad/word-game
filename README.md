@@ -32,16 +32,32 @@ The API validates Entra External ID access tokens on protected routes.
 
 ## CI/CD pipelines
 
-GitHub Actions workflows live in `.github/workflows`:
+The CI/CD flow is script-first. GitHub Actions wraps the same scripts under `scripts/` so local and CI behavior match.
 
-- `CI` (`ci.yml`) runs on pull requests and uses path-filtered jobs for:
-  - `web` (`apps/web/**`)
-  - `api` (`apps/api/**`)
-  - `agent` (`apps/agent/**`)
-  - `infra` (`mcaps-infra/**`)
-- `CD` (`cd.yml`) runs on pushes to `main` and supports manual `workflow_dispatch`.
-  - Infra deploy runs first (Terraform spoke stack in `mcaps-infra/`, remote azurerm backend).
-  - App deployments (`web`, `api`, `agent`, `waf`) depend on successful infra deploy.
+### Local CI entrypoint
+
+```bash
+scripts/ci-run.sh --target all
+```
+
+Supported targets: `web`, `api`, `agent`, `shared`, `infra`, `all`.
+
+### Local CD entrypoints
+
+```bash
+# Terraform deploy (writes outputs to stdout)
+TF_STATE_SA=<tf-state-storage-account> scripts/cd-infra-apply.sh
+
+# Image build/push + Container Apps update (defaults image tag to current short commit SHA)
+scripts/cd-deploy.sh --targets web,api,agent,waf
+```
+
+`scripts/cd-deploy.sh` builds images locally with Docker (`--platform linux/amd64`), pushes via `az acr login`, and updates Container Apps. Container Apps pull using managed identity (UAMI with `AcrPull` role).
+
+### GitHub workflow wrappers
+
+- `CI` (`.github/workflows/ci.yml`) runs component-targeted calls to `scripts/ci-run.sh`.
+- `CD` (`.github/workflows/cd.yml`) runs `scripts/cd-infra-apply.sh` then `scripts/cd-deploy.sh`.
 
 ### Bootstrap scripts
 

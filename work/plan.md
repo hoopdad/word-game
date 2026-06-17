@@ -30,8 +30,15 @@
 
 ## Milestone: sprint1a-network-lockdown
 - [ ] Correct ACA subnet delegation actions and NSG rules for WAF/ACA/private-endpoint traffic.
-- [ ] Align Terraform defaults/examples with ACA subnet sizing and ACR admin credential requirements.
+- [ ] Align Terraform defaults/examples with ACA subnet sizing and MI-based ACR pull (UAMI AcrPull).
 - [ ] Add WAF image sources plus reset/bootstrap helper scripts.
 - [ ] Extend CD workflow with WAF change detection, infra outputs, and WAF deployment.
 - [ ] Run `terraform fmt -recursive`, `terraform validate`, and `scripts/verify-local.sh`.
 - [ ] Commit, push `feature/sprint1`, and record the PR URL.
+
+## Milestone: local-script-cicd-rewrite
+- [x] Add script-first CI runner (`scripts/ci-run.sh`) for workspace and infra targets.
+- [x] Add script-first CD runners (`scripts/cd-infra-apply.sh`, `scripts/cd-deploy.sh`) using Terraform + Azure CLI.
+- [x] Refactor `.github/workflows/ci.yml` and `.github/workflows/cd.yml` to wrap local scripts.
+- [x] Update `README.md` and `docs/runbooks/OPERATOR_RUNBOOK.md` for script-first usage.
+- [ ] Push branch and record PR URL.
