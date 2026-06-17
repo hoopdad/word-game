@@ -44,8 +44,6 @@ enable_openai_resources   = false
 enable_foundry_resources  = false
 enable_storage            = false
 enable_self_hosted_runner = true
-runner_vm_size            = "Standard_D2s_v4"
-runner_label              = "wordgame-spoke"
 
 tags = {
   environment = "lab"

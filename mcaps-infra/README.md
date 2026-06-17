@@ -69,9 +69,7 @@ and cross-resource access grants land:
 | `enable_storage`           | AVM storage account + blob private endpoint             |
 | `enable_openai_resources`  | Azure OpenAI cognitive account                          |
 | `enable_foundry_resources` | AI Foundry project + deployment (azapi)                 |
-| `enable_self_hosted_runner`| Private Ubuntu VM in `workload-subnet` for ephemeral GitHub runner registration |
-| `runner_vm_size`           | Azure VM size for the self-hosted runner                |
-| `runner_label`             | Base GitHub runner label used by CD                     |
+| `enable_self_hosted_runner`| Runner networking support in `workload-subnet` (VM is provisioned with Azure CLI) |
 
 > ACR has `admin_enabled = true` so CD can authenticate the Container Apps registry
 > with admin credentials. CD now builds/pushes images from an ephemeral self-hosted

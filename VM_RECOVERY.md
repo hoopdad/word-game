@@ -72,18 +72,11 @@ az vm run-command invoke \
 
 ### Option 3: Recreate VM (Nuclear Option)
 
-If the VM is unrecoverable, destroy and recreate it via Terraform:
+If the VM is unrecoverable, recreate it with the az CLI helper:
 
 ```bash
-cd mcaps-infra
-
-# Destroy the runner VM
-terraform destroy --target='azurerm_windows_virtual_machine.runner[0]'
-
-# Reapply
-terraform apply
-
-# Then run setup on new VM (see steps above)
+./scripts/provision-self-hosted-runner-vm.sh
+./scripts/register-self-hosted-runner-from-workstation.sh
 ```
 
 ## Verification

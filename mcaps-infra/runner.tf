@@ -1,9 +1,3 @@
-resource "random_password" "runner_admin" {
-  count   = var.enable_self_hosted_runner ? 1 : 0
-  length  = 20
-  special = true
-}
-
 resource "azurerm_network_security_group" "runner" {
   count               = var.enable_self_hosted_runner ? 1 : 0
   name                = "nsg-runner-${local.spoke_prefix}"
@@ -163,53 +157,4 @@ resource "azurerm_subnet_nat_gateway_association" "runner" {
   count          = var.enable_self_hosted_runner ? 1 : 0
   subnet_id      = azapi_resource.subnet_workload.id
   nat_gateway_id = azurerm_nat_gateway.runner[0].id
-}
-
-resource "azurerm_linux_virtual_machine" "runner" {
-  count                           = var.enable_self_hosted_runner ? 1 : 0
-  name                            = "vm-runner-${local.spoke_prefix}"
-  location                        = var.spoke_region
-  resource_group_name             = azurerm_resource_group.spoke.name
-  size                            = var.runner_vm_size
-  admin_username                  = "runneradmin"
-  admin_password                  = random_password.runner_admin[0].result
-  disable_password_authentication = false
-  network_interface_ids           = [azurerm_network_interface.runner[0].id]
-  tags                            = local.common_tags
-  user_data = base64encode(format("%s\nexport RUNNER_LABEL_VALUE='%s'\n%s",
-    "#!/bin/bash",
-    var.runner_label,
-    join("", [for line in split("\n", file("${path.module}/runner-setup.sh")) :
-      line == "#!/bin/bash" ? "" : "${line}\n"
-    ])
-  ))
-
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [module.uami.resource_id]
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts-gen2"
-    version   = "latest"
-  }
-
-  depends_on = [
-    azapi_resource.subnet_workload,
-    azurerm_network_interface_security_group_association.runner
-  ]
-
-  lifecycle {
-    # The VM carries a second UAMI injected by the management subscription
-    # (for Azure Monitor Agent). TF only owns the spoke UAMI; ignoring
-    # identity drift prevents a 30-45 min ARM timeout on every apply.
-    ignore_changes = [identity]
-  }
 }

@@ -17,6 +17,7 @@ Runner registration must be executed from an operator workstation, not from a Gi
 From repository root:
 
 ```bash
+scripts/provision-self-hosted-runner-vm.sh
 scripts/register-self-hosted-runner-from-workstation.sh
 ```
 

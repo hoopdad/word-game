@@ -65,7 +65,7 @@ jobs:
     name: Deploy infrastructure
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
+    if: needs.detect-changes.outputs.infra == 'true'
     concurrency:
       group: wordgame-spoke-tfstate
       cancel-in-progress: false
@@ -81,8 +81,6 @@ jobs:
       api_app_name: ${{ steps.tf_outputs.outputs.api_app_name }}
       agent_app_name: ${{ steps.tf_outputs.outputs.agent_app_name }}
       waf_app_name: ${{ steps.tf_outputs.outputs.waf_app_name }}
-      runner_vm_name: ${{ steps.tf_outputs.outputs.runner_vm_name }}
-      runner_label: ${{ steps.tf_outputs.outputs.runner_label }}
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -146,21 +144,9 @@ jobs:
           API_APP_NAME="$(terraform -chdir=mcaps-infra output -json container_app_names | jq -r '.api')"
           AGENT_APP_NAME="$(terraform -chdir=mcaps-infra output -json container_app_names | jq -r '.agent')"
           WAF_APP_NAME="$(terraform -chdir=mcaps-infra output -json container_app_names | jq -r '.waf')"
-          RUNNER_VM_NAME="$(terraform -chdir=mcaps-infra output -raw runner_vm_name)"
-          RUNNER_LABEL="$(terraform -chdir=mcaps-infra output -raw runner_label)"
 
           if [[ -z "$ACR_LOGIN_SERVER" || "$ACR_LOGIN_SERVER" == *"::error::"* || "$ACR_LOGIN_SERVER" != *.azurecr.io ]]; then
             echo "Invalid acr_login_server output: $ACR_LOGIN_SERVER"
-            exit 1
-          fi
-
-          if [[ -z "$RUNNER_VM_NAME" || "$RUNNER_VM_NAME" == "null" ]]; then
-            echo "runner_vm_name output is required when self-hosted runner is enabled."
-            exit 1
-          fi
-
-          if [[ -z "$RUNNER_LABEL" || "$RUNNER_LABEL" == "null" ]]; then
-            echo "runner_label output is required when self-hosted runner is enabled."
             exit 1
           fi
 
@@ -170,23 +156,19 @@ jobs:
           echo "api_app_name=${API_APP_NAME}" >> "$GITHUB_OUTPUT"
           echo "agent_app_name=${AGENT_APP_NAME}" >> "$GITHUB_OUTPUT"
           echo "waf_app_name=${WAF_APP_NAME}" >> "$GITHUB_OUTPUT"
-          echo "runner_vm_name=${RUNNER_VM_NAME}" >> "$GITHUB_OUTPUT"
-          echo "runner_label=${RUNNER_LABEL}" >> "$GITHUB_OUTPUT"
 
   runner-readiness:
     name: Verify self-hosted runner readiness
     runs-on: ubuntu-latest
     permissions:
       actions: read
-    needs:
-      - detect-changes
-      - infra-deploy
-    if: needs.infra-deploy.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true')
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
     steps:
       - name: Check runner label online in repository
         env:
           GH_TOKEN: ${{ github.token }}
-          RUNNER_LABEL: ${{ needs.infra-deploy.outputs.runner_label || 'wordgame-spoke' }}
+          RUNNER_LABEL: wordgame-spoke
         run: |
           set -euo pipefail
 
@@ -229,7 +211,13 @@ jobs:
       - detect-changes
       - infra-deploy
       - runner-readiness
-    if: needs.infra-deploy.result == 'success' && needs.runner-readiness.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true')
+    if: always() && (needs.infra-deploy.result == 'success' || needs.infra-deploy.result == 'skipped') && needs.runner-readiness.result == 'success' && (needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true')
+    env:
+      RESOURCE_GROUP: mikeo-lab-infra-rg
+      WEB_APP_NAME: ca-web-mikeo-lab-infra
+      API_APP_NAME: ca-api-mikeo-lab-infra
+      AGENT_APP_NAME: ca-agent-mikeo-lab-infra
+      WAF_APP_NAME: ca-waf-mikeo-lab-infra
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -240,14 +228,8 @@ jobs:
       - name: Ensure Container Apps extension
         run: az extension add --name containerapp --upgrade
       - name: Resolve ACR metadata
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
         run: |
           ACR_NAME="$(az acr list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv)"
-          if [[ -z "$ACR_NAME" || "$ACR_NAME" == "null" ]]; then
-            ACR_NAME="${ACR_LOGIN_SERVER_OUTPUT%%.*}"
-          fi
           if [[ ! "$ACR_NAME" =~ ^[a-zA-Z0-9]{5,50}$ ]]; then
             echo "Invalid ACR name resolved for deploy-apps: $ACR_NAME"
             exit 1
@@ -256,21 +238,10 @@ jobs:
           echo "ACR_NAME=$ACR_NAME" >> "$GITHUB_ENV"
           echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
       - name: Preflight ACR creds + infra outputs
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          ACR_LOGIN_SERVER_OUTPUT: ${{ needs.infra-deploy.outputs.acr_login_server }}
-          WEB_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
-          API_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
-          AGENT_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
-          WAF_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
         run: |
           set -euo pipefail
-          for v in RESOURCE_GROUP ACR_NAME ACR_LOGIN_SERVER ACR_LOGIN_SERVER_OUTPUT; do
+          for v in RESOURCE_GROUP ACR_NAME ACR_LOGIN_SERVER WEB_APP_NAME API_APP_NAME AGENT_APP_NAME WAF_APP_NAME; do
             [[ -n "${!v:-}" && "${!v}" != "null" ]] || { echo "::error::Missing $v"; exit 1; }
-          done
-          [[ "$ACR_LOGIN_SERVER" == "$ACR_LOGIN_SERVER_OUTPUT" ]] || { echo "::error::ACR login server mismatch"; exit 1; }
-          for v in WEB_APP_NAME API_APP_NAME AGENT_APP_NAME WAF_APP_NAME; do
-            [[ -n "${!v:-}" && "${!v}" != "null" ]] || { echo "::error::Missing infra output $v"; exit 1; }
           done
           [[ "$(az acr show --name "$ACR_NAME" --query adminUserEnabled -o tsv)" == "true" ]] || { echo "::error::ACR admin user disabled"; exit 1; }
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
@@ -321,37 +292,27 @@ jobs:
 
       - name: Configure web registry credentials
         if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
         run: |
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
-          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+          az containerapp registry set --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update web container app
         if: needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.web_app_name }}
           IMAGE_TAG: ${{ github.sha }}
-        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
+        run: az containerapp update --name "$WEB_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/web:${IMAGE_TAG}"
 
       - name: Configure api registry credentials
         if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
         run: |
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
-          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+          az containerapp registry set --name "$API_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update api container app
         if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.api_app_name }}
           IMAGE_TAG: ${{ github.sha }}
           ENTRA_JWT_ISSUER: ${{ vars.ENTRA_JWT_ISSUER }}
           ENTRA_JWT_AUDIENCE: ${{ vars.ENTRA_JWT_AUDIENCE }}
@@ -359,7 +320,7 @@ jobs:
           ENTRA_JWKS_URI: ${{ vars.ENTRA_JWKS_URI }}
         run: |
           az containerapp update \
-            --name "$CONTAINER_APP_NAME" \
+            --name "$API_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --image "${ACR_LOGIN_SERVER}/api:${IMAGE_TAG}" \
             --set-env-vars \
@@ -370,39 +331,29 @@ jobs:
 
       - name: Configure agent registry credentials
         if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
         run: |
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
-          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+          az containerapp registry set --name "$AGENT_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update agent container app
         if: needs.detect-changes.outputs.agent == 'true' || needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.tooling == 'true'
         env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.agent_app_name }}
           IMAGE_TAG: ${{ github.sha }}
-        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
+        run: az containerapp update --name "$AGENT_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/agent:${IMAGE_TAG}"
 
       - name: Configure WAF registry credentials
         if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true'
-        env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
         run: |
           ACR_USERNAME="$(az acr credential show --name "$ACR_NAME" --query username -o tsv)"
           ACR_PASSWORD="$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)"
-          az containerapp registry set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
+          az containerapp registry set --name "$WAF_APP_NAME" --resource-group "$RESOURCE_GROUP" --server "$ACR_LOGIN_SERVER" --username "$ACR_USERNAME" --password "$ACR_PASSWORD"
 
       - name: Update WAF container app
         if: needs.detect-changes.outputs.waf == 'true' || needs.detect-changes.outputs.infra == 'true'
         env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          CONTAINER_APP_NAME: ${{ needs.infra-deploy.outputs.waf_app_name }}
           IMAGE_TAG: ${{ github.sha }}
-        run: az containerapp update --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
+        run: az containerapp update --name "$WAF_APP_NAME" --resource-group "$RESOURCE_GROUP" --image "${ACR_LOGIN_SERVER}/waf:${IMAGE_TAG}"
 
   stop-runner:
     name: Stop runner VM
@@ -422,8 +373,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Deallocate runner VM
         env:
-          RESOURCE_GROUP: ${{ needs.infra-deploy.outputs.resource_group }}
-          VM_NAME: ${{ needs.infra-deploy.outputs.runner_vm_name }}
+          RESOURCE_GROUP: mikeo-lab-infra-rg
+          VM_NAME: vm-runner-mikeo-lab-infra
         run: |
           if [[ -z "$VM_NAME" || "$VM_NAME" == "null" ]]; then
             echo "No VM name; skipping deallocate."
