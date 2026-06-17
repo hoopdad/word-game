@@ -1,0 +1,61 @@
+# Platform Guardrails — word-game
+# Binding constraints for all child repos
+
+pattern: "azure-fullstack"
+project: "word-game"
+region: "centralus"
+
+pattern_constraints:
+  infra:
+    - "Use Azure Verified Modules (AVM) for all resources where an AVM exists"
+    - "Terraform azurerm provider >= 4.0"
+    - "All resources in Central US region"
+    - "Private networking with VNet, private endpoints, and NSGs"
+    - "Use spoke-skill (mcaps-spoke-skill) to scaffold networking Terraform"
+    - "Do NOT add private DNS zones to the spoke — only to the hub"
+    - "Cosmos DB NoSQL serverless with session consistency"
+    - "Azure Container Apps consumption plan with VNet integration"
+    - "ACR Basic SKU (dev) with managed identity pull"
+    - "Key Vault Standard SKU with RBAC"
+    - "Azure AI Foundry project with GPT-4.1-mini deployment"
+    - "User-assigned managed identity for Container Apps"
+    - "OIDC federation for GitHub Actions"
+    - "Log Analytics workspace with daily cap"
+
+  frontend:
+    - "React 18 with TypeScript (strict mode)"
+    - "Vite for build, Vitest for unit tests, Playwright for e2e"
+    - "MSAL.js (@azure/msal-browser) with PKCE flow"
+    - "sessionStorage for token cache (not localStorage)"
+    - "ESLint + Prettier + eslint-plugin-security"
+    - "Multi-stage Dockerfile, run as non-root"
+
+  backend:
+    - "Python 3.12 with FastAPI"
+    - "pytest for testing, ruff for lint/format"
+    - "Cosmos DB SDK (azure-cosmos) for data"
+    - "WebSocket support via FastAPI WebSocket"
+    - "JWT token validation (issuer, audience, expiry, nbf, scopes)"
+    - "Rate limiting with slowapi"
+    - "Structured JSON logging"
+    - "Multi-stage Dockerfile, run as non-root"
+
+  agent:
+    - "Python 3.11 with Microsoft Agent Framework"
+    - "agent_framework.Agent + agent_framework.foundry.FoundryChatClient"
+    - "pytest for testing, ruff for lint/format"
+    - "Multi-stage Dockerfile, run as non-root"
+
+  waf:
+    - "Nginx with ModSecurity and OWASP CRS"
+    - "Routes: /api/* → api service, /agent/* → agent service, /* → web service"
+    - "HTTPS termination, security headers"
+    - "Multi-stage Dockerfile"
+
+  cicd:
+    - "GitHub Actions on self-hosted runners only"
+    - "OIDC federation for Azure auth (no stored credentials)"
+    - "CI: lint → security scan → test → build (fail fast)"
+    - "CD: infra deploy first, then services"
+    - "Container images tagged with :sha and :latest"
+    - "Separate CI and CD workflows"

@@ -1,0 +1,34 @@
+name: "agent-api"
+type: "REST"
+provider: "word-game-agent"
+consumers:
+  - "word-game-api"
+description: "Category generation agent that scrapes configured URLs and extracts word categories using AI"
+endpoints:
+  - method: "POST"
+    path: "/api/categories/generate"
+    description: "Generate word categories from a list of source URLs"
+    request:
+      urls: { type: "array", items: "string", required: true }
+      num_categories: { type: "integer", required: true, description: "Minimum number of categories to generate (one per player)" }
+    response:
+      200:
+        categories:
+          - name: { type: "string", description: "Category name e.g. 'Azure Networking'" }
+            source_url: { type: "string", description: "URL the category was extracted from" }
+            words:
+              - { type: "string", description: "Domain-specific word or short phrase (2-3 words max)" }
+      422: { error: "string", detail: "string" }
+      500: { error: "string", detail: "Category generation failed" }
+
+  - method: "GET"
+    path: "/health"
+    description: "Health check"
+    response:
+      200: { status: "healthy" }
+
+  - method: "GET"
+    path: "/version"
+    description: "Build version"
+    response:
+      200: { build: "string" }

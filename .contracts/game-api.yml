@@ -1,0 +1,96 @@
+name: "game-api"
+type: "REST"
+provider: "word-game-api"
+consumers:
+  - "word-game-web"
+endpoints:
+  # User Management
+  - method: "POST"
+    path: "/api/users/register"
+    description: "Register a new display name for the authenticated user"
+    request:
+      display_name: { type: "string", required: true, min_length: 2, max_length: 20 }
+    response:
+      201: { id: "string", display_name: "string" }
+      409: { error: "string", detail: "Name already taken" }
+      401: { error: "Unauthorized" }
+
+  - method: "GET"
+    path: "/api/users/active"
+    description: "Get all currently connected users"
+    response:
+      200: { users: [{ id: "string", display_name: "string" }] }
+
+  - method: "GET"
+    path: "/api/users/check-name/{name}"
+    description: "Check if a display name is available"
+    response:
+      200: { available: "boolean" }
+
+  # Game Management
+  - method: "GET"
+    path: "/api/game/status"
+    description: "Get current game status (none, in-progress, completed)"
+    response:
+      200: { status: "string", game_id: "string|null" }
+
+  - method: "POST"
+    path: "/api/game/start"
+    description: "Start a new game with all connected users"
+    response:
+      201: { game_id: "string", players: ["string"], status: "gathering_categories" }
+      409: { error: "Game already in progress" }
+
+  - method: "GET"
+    path: "/api/game/{game_id}"
+    description: "Get full game state"
+    response:
+      200: { game_id: "string", status: "string", players: ["object"], rounds: ["object"], categories: ["object"] }
+      404: { error: "Game not found" }
+
+  # Scores
+  - method: "GET"
+    path: "/api/scores/all-time"
+    description: "Top 10 highest scoring players of all time"
+    response:
+      200: { scores: [{ display_name: "string", total_points: "integer", rank: "integer" }] }
+
+  - method: "GET"
+    path: "/api/scores/today"
+    description: "Top 3 highest scoring players today"
+    response:
+      200: { scores: [{ display_name: "string", total_points: "integer", rank: "integer" }] }
+
+  - method: "GET"
+    path: "/api/scores/game-count"
+    description: "Total number of games ever played"
+    response:
+      200: { count: "integer" }
+
+  # Category Configuration
+  - method: "GET"
+    path: "/api/categories/config"
+    description: "Get current category source URLs"
+    response:
+      200: { urls: ["string"] }
+
+  - method: "PUT"
+    path: "/api/categories/config"
+    description: "Update category source URLs"
+    request:
+      urls: { type: "array", items: "string", required: true }
+    response:
+      200: { urls: ["string"] }
+
+  # Health
+  - method: "GET"
+    path: "/health"
+    description: "Health check"
+    response:
+      200: { status: "healthy" }
+
+  - method: "GET"
+    path: "/version"
+    description: "Build version"
+    response:
+      200: { build: "string" }

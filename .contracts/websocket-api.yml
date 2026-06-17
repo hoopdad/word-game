@@ -1,0 +1,129 @@
+name: "websocket-api"
+type: "WebSocket"
+provider: "word-game-api"
+consumers:
+  - "word-game-web"
+
+connection:
+  path: "/ws"
+  auth: "JWT token passed as query parameter or first message"
+  protocol: "JSON messages over WebSocket"
+
+# Client → Server Messages
+client_events:
+  - event: "join"
+    description: "User joins the lobby after setting display name"
+    payload:
+      display_name: { type: "string", required: true }
+
+  - event: "start_game"
+    description: "Any user starts a game"
+    payload: {}
+
+  - event: "start_round"
+    description: "Start first round or next round (from category overview)"
+    payload: {}
+
+  - event: "submit_guess"
+    description: "Guesser submits a guess"
+    payload:
+      guess: { type: "string", required: true }
+
+  - event: "judge_correct"
+    description: "Clue-giver judges the current guess as correct"
+    payload: {}
+
+# Server → Client Messages
+server_events:
+  - event: "user_joined"
+    description: "A user has connected to the lobby"
+    payload:
+      user_id: "string"
+      display_name: "string"
+      active_users: [{ id: "string", display_name: "string" }]
+
+  - event: "user_left"
+    description: "A user has disconnected"
+    payload:
+      user_id: "string"
+      active_users: [{ id: "string", display_name: "string" }]
+
+  - event: "game_started"
+    description: "A game has been started"
+    payload:
+      game_id: "string"
+      players: [{ id: "string", display_name: "string" }]
+      status: "gathering_categories"
+
+  - event: "categories_ready"
+    description: "Category agent has finished generating categories"
+    payload:
+      categories: [{ name: "string", words: ["string"] }]
+
+  - event: "round_started"
+    description: "A new round has begun"
+    payload:
+      round_number: "integer"
+      guesser_id: "string"
+      guesser_name: "string"
+      role: "guesser | clue_giver"
+      category: "string"
+      countdown_seconds: 10
+
+  - event: "countdown_tick"
+    description: "Countdown timer tick"
+    payload:
+      seconds_remaining: "integer"
+
+  - event: "round_active"
+    description: "Round timer started, gameplay begins"
+    payload:
+      time_remaining_seconds: 120
+
+  - event: "word_shown"
+    description: "Word shown to clue-givers (not sent to guesser)"
+    payload:
+      word: "string"
+
+  - event: "guess_submitted"
+    description: "Guesser submitted a guess (shown to clue-givers for judging)"
+    payload:
+      guess: "string"
+
+  - event: "guess_correct"
+    description: "A guess was judged correct"
+    payload:
+      word: "string"
+      points: 10
+      guesser_score: "integer"
+
+  - event: "timer_tick"
+    description: "Round timer update"
+    payload:
+      time_remaining_seconds: "integer"
+
+  - event: "round_ended"
+    description: "Round has ended"
+    payload:
+      round_number: "integer"
+      guesser_name: "string"
+      points_earned: "integer"
+      reason: "time_expired | all_words_guessed"
+
+  - event: "game_ended"
+    description: "Game is over"
+    payload:
+      winners: [{ id: "string", display_name: "string", total_points: "integer" }]
+      all_scores: [{ display_name: "string", total_points: "integer" }]
+      new_records: { all_time: "boolean", daily: "boolean" }
+
+  - event: "error"
+    description: "Error message"
+    payload:
+      message: "string"
+      code: "string"
+
+  - event: "game_in_progress"
+    description: "Sent to users who connect while a game is active"
+    payload:
+      message: "Game in progress. Please wait."

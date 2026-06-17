@@ -1,0 +1,23 @@
+# Run: ../enterprise-copilot-fleet-controller/scripts/init.sh --config init.yml
+#
+# The "pattern" field replaces explicit "children" — it auto-generates
+# repos named {project}-web, {project}-api, {project}-agent, {project}-infra
+# with the correct roles, stacks, and NFRs for the chosen pattern.
+# Child local paths default to ../{child-name} and are written to .repo-index.yml.
+
+project:
+  name: "word-game"
+  pattern: "azure-fullstack"
+  github_owner: "hoopdad"
+  visibility: "private"
+  create_repos: true
+  fresh_start: true  # Remove framework files (.agents, .copilot, etc.) and re-init
+  # Optional MCP tool setup (default: false/off)
+  enable_mcp: true
+
+  # Application description — used as the initial Copilot prompt if
+  # initial_prompt is not set. Describe WHAT your app does, not HOW.
+  app_description: |
+    a multiplayer, distributed game where one player guesses a word based on clues
+    from the other players. Anyone loading the website before a game starts can 
+    participate. Only one game is active at a time in the entire system. 
