@@ -19,7 +19,6 @@ pattern_constraints:
     - "Key Vault Standard SKU with RBAC"
     - "Azure AI Foundry project with GPT-4.1-mini deployment"
     - "User-assigned managed identity for Container Apps"
-    - "OIDC federation for GitHub Actions"
     - "Log Analytics workspace with daily cap"
 
   frontend:
@@ -53,9 +52,9 @@ pattern_constraints:
     - "Multi-stage Dockerfile"
 
   cicd:
-    - "GitHub Actions on self-hosted runners only"
-    - "OIDC federation for Azure auth (no stored credentials)"
-    - "CI: lint → security scan → test → build (fail fast)"
+    - "Local azd up from word-game-harness orchestrates all deployments"
+    - "Local validation runs lint → security scan → test → build (fail fast) before deployment"
+    - "Terraform applies locally with local state files"
     - "CD: infra deploy first, then services"
+    - "Container images built and pushed via az acr build"
     - "Container images tagged with :sha and :latest"
-    - "Separate CI and CD workflows"

@@ -80,19 +80,18 @@ cost:
 
 devops:
   ci:
-    - "All CI runs on self-hosted GitHub Actions runners — never GitHub-hosted"
-    - "Self-hosted runners must be ephemeral (fresh VM/container per job) to prevent cross-job credential leakage"
-    - "CI triggers on push to main and all pull requests"
-    - "CI must pass before CD can execute (workflow_run dependency)"
-    - "CI jobs: lint, security scan, unit tests (all must pass)"
+    - "Local validation must run before deployment"
+    - "Validation steps: lint, security scan, unit tests, and image build verification"
     - "Fail fast: lint and format checks run before slower test suites"
+    - "Trivy image scans must pass before any image push"
 
   cd:
-    - "CD triggers only after CI succeeds on main branch"
-    - "Use GitHub OIDC federation for Azure authentication — no stored credentials"
+    - "Deployments run locally from word-game-harness via azd up"
+    - "Azure authentication uses the operator's local az CLI context"
     - "Build and push container images to ACR with both :sha and :latest tags"
-    - "Force-deploy latest image to all running Container App revisions"
-    - "Terraform changes applied via separate infra CD pipeline with plan + apply"
+    - "Container images are built and pushed via az acr build"
+    - "Terraform changes are planned and applied locally with local state files"
+    - "Infrastructure deployment completes before service rollout"
 
   branching:
     - "Trunk-based development: main is the only long-lived branch"
@@ -189,7 +188,6 @@ architecture:
     - "Self-service signup via Entra-hosted user flows (no custom email collection)"
     - "MSAL.js with PKCE auth flow; tokens in sessionStorage (not localStorage)"
     - "Profile creation on first authenticated visit (sub claim as user ID, not email)"
-    - "OIDC federation for GitHub Actions → Azure (no stored secrets)"
     - "User-assigned managed identity for Container Apps"
 
   observability:
