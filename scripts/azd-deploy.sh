@@ -239,6 +239,9 @@ deploy_service \
   "WEB_UPSTREAM=http://${WEB_FQDN}" \
   "CORS_ALLOWED_ORIGIN=https://${WAF_FQDN}"
 
+# WAF is the public entry point — never scale to zero
+az containerapp update --name word-game-waf --resource-group "$RG" --min-replicas 1 --only-show-errors -o none
+
 WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 
 ok "Deployment complete"
