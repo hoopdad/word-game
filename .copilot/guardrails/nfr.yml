@@ -94,6 +94,16 @@ devops:
     - "Terraform changes are planned and applied locally with local state files"
     - "Deployment order is infra → api → agent → web → waf"
 
+  api_contract_alignment:
+    - "All API routes, request/response schemas are defined in .contracts/game-api.yml"
+    - "Frontend request body field names MUST use snake_case to match Python/Pydantic models"
+    - "Frontend apiClient base URL MUST be /api (relative path) — never absolute URL or localhost"
+    - "MSAL redirectUri and WebSocket URLs MUST use window.location runtime derivation, not VITE_* build-time env vars"
+    - "Run scripts/audit-routes.sh before deployment to catch path, method, and field name mismatches"
+    - "Run scripts/verify-deploy.sh after deployment to confirm all WAF→API→Web flows return expected status codes"
+    - "When adding/changing API routes: update .contracts/game-api.yml, then update both API and frontend"
+    - "The WAF proxies /api/* to the API backend and /* to the web frontend — path alignment through the WAF is critical"
+
   branching:
     - "Trunk-based development: main is the only long-lived branch"
     - "Feature branches merge via PR with required local validation evidence"
