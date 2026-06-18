@@ -13,3 +13,13 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
 2026-06-17 | data: Cosmos partition keys designed for access patterns: users(/id), games(/id with singleton lock), scores(/userId), category_config(/id)
 2026-06-17 | security: All WebSocket events validated server-side for role/state authorization (guesser can only guess, clue-givers can only judge)
 2026-06-17 | architecture: Player disconnection handled with reconnect window, guesser skip/forfeit on disconnect, quorum checks
+2026-06-17 | infra: GPT-4.1-mini deployed with GlobalStandard SKU in Central US (Standard SKU not supported in this region)
+2026-06-17 | infra: Entra ID resources removed from Terraform — managed by scripts/setup-entra.sh (local workstation with az cli)
+2026-06-17 | infra: Container App resources split from word-game-infra — each service's CD workflow creates/manages its own app via az containerapp CLI
+2026-06-17 | infra: Container App Environments remain in infra TF (platform resource); individual apps are ephemeral per-deploy
+2026-06-17 | devops: SHA-named container app deployment pattern — new app created per deploy (wordgame-{service}-v{sha7}), old deleted after health check
+2026-06-17 | devops: WAF excluded from SHA-named pattern — deploys in-place last, reads active service FQDNs from Key Vault
+2026-06-17 | devops: Single GHA app registration (ca17ff28) with per-repo federated credentials for OIDC (acceptable for initial dev; separate per trust tier for prod)
+2026-06-17 | devops: CD workflows use concurrency groups to prevent race conditions between simultaneous deploys
+2026-06-17 | devops: Active service FQDNs stored in Key Vault for WAF upstream discovery after SHA-named deploys
+2026-06-17 | security: Cosmos data-plane access uses cosmosdb_sql_role_assignment (not ARM RBAC) with built-in Data Contributor role
