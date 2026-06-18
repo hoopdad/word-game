@@ -89,6 +89,7 @@ deploy_service() {
     --image "${image_repo}:${TAG}" \
     --image "${image_repo}:latest" \
     "$service_dir" \
+    --no-logs \
     --only-show-errors
 
   if az containerapp show --name "$app_name" --resource-group "$RG" --query name -o tsv --only-show-errors >/dev/null 2>&1; then
