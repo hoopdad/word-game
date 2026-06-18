@@ -49,6 +49,12 @@
       "args": ["/home/mike/source/enterprise-copilot-fleet-controller/tools/deploy-verifier/server.py"],
       "env": { "PROJECT_DIR": "/home/mike/source/word-game/word-game-harness" }
     },
+    "deploy-local": {
+      "description": "Deploy word-game services locally via azd and custom scripts.",
+      "command": "/home/mike/source/enterprise-copilot-fleet-controller/.venv/bin/python3",
+      "args": ["/home/mike/source/enterprise-copilot-fleet-controller/tools/deploy-local/server.py"],
+      "env": { "PROJECT_DIR": "/home/mike/source/word-game/word-game-harness" }
+    },
     "security-scanner": {
       "description": "Run available scanners and normalize findings into one report.",
       "command": "/home/mike/source/enterprise-copilot-fleet-controller/.venv/bin/python3",
