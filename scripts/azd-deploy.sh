@@ -153,7 +153,7 @@ deploy_service \
   "KEY_VAULT_URL=${KV_URI}" \
   "OIDC_METADATA_URL=https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0/.well-known/openid-configuration" \
   "JWT_ISSUER=" \
-  "JWT_AUDIENCE=api://${ENTRA_API_CLIENT_ID}" \
+  "JWT_AUDIENCE=${ENTRA_API_CLIENT_ID}" \
   "JWT_REQUIRED_SCOPE=access_as_user"
 
 deploy_service \
