@@ -136,6 +136,12 @@ AGENT_DIR="$(cd "$HARNESS_DIR/../word-game-agent" && pwd)"
 WEB_DIR="$(cd "$HARNESS_DIR/../word-game-web" && pwd)"
 WAF_DIR="$(cd "$HARNESS_DIR/../word-game-waf" && pwd)"
 
+# Entra configuration for web SPA
+ENTRA_WEB_CLIENT_ID="${ENTRA_WEB_CLIENT_ID:-b4d29652-ff30-43ea-90f6-830cc340f866}"
+ENTRA_API_CLIENT_ID="${ENTRA_API_CLIENT_ID:-16f3fd41-cddd-44fb-a149-14314e62f7a8}"
+ENTRA_TENANT_ID="${ENTRA_TENANT_ID:-d52a6857-5f44-4f8f-bcc8-420952d3225d}"
+MSAL_AUTHORITY="https://login.microsoftonline.com/${ENTRA_TENANT_ID}"
+
 deploy_service \
   api \
   "$API_DIR" \
@@ -155,12 +161,64 @@ deploy_service \
   "AZURE_FOUNDRY_URL=https://wordgamedevfoundry.cognitiveservices.azure.com/" \
   "KEY_VAULT_URL=${KV_URI}"
 
-deploy_service \
-  web \
+# Resolve WAF FQDN for MSAL redirect URI (WAF app must exist from prior deploy)
+WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
+if [ -z "${WAF_FQDN:-}" ]; then
+  MSAL_REDIRECT_URI="http://localhost:3000/welcome"
+  info "WAF not yet deployed; using localhost redirect URI for web build"
+else
+  MSAL_REDIRECT_URI="https://${WAF_FQDN}/welcome"
+fi
+
+# Build web with MSAL config injected at build time
+info "Building web image in ACR (with MSAL build args)"
+az acr build \
+  --registry "$ACR_NAME" \
+  --image "word-game-web:${TAG}" \
+  --image "word-game-web:latest" \
+  --build-arg "VITE_MSAL_CLIENT_ID=${ENTRA_WEB_CLIENT_ID}" \
+  --build-arg "VITE_MSAL_AUTHORITY=${MSAL_AUTHORITY}" \
+  --build-arg "VITE_MSAL_REDIRECT_URI=${MSAL_REDIRECT_URI}" \
+  --build-arg "VITE_MSAL_API_CLIENT_ID=${ENTRA_API_CLIENT_ID}" \
+  --build-arg "VITE_API_BASE_URL=/api" \
+  --build-arg "VITE_WS_BASE_URL=" \
   "$WEB_DIR" \
-  8080 \
-  internal \
-  "$CAE_EDGE_ID"
+  --no-logs \
+  --only-show-errors
+
+WEB_IMAGE_REF="${ACR_LOGIN_SERVER}/word-game-web:${TAG}"
+WEB_APP_NAME="word-game-web"
+
+if az containerapp show --name "$WEB_APP_NAME" --resource-group "$RG" --query name -o tsv --only-show-errors >/dev/null 2>&1; then
+  info "Updating ${WEB_APP_NAME}"
+  az containerapp update \
+    --name "$WEB_APP_NAME" \
+    --resource-group "$RG" \
+    --image "$WEB_IMAGE_REF" \
+    --set-env-vars "AZURE_CLIENT_ID=${MI_CLIENT_ID}" \
+    --only-show-errors >/dev/null
+else
+  info "Creating ${WEB_APP_NAME}"
+  az containerapp create \
+    --name "$WEB_APP_NAME" \
+    --resource-group "$RG" \
+    --environment "$CAE_EDGE_ID" \
+    --image "$WEB_IMAGE_REF" \
+    --target-port 8080 \
+    --ingress internal \
+    --min-replicas 0 \
+    --max-replicas 3 \
+    --user-assigned "$MI_RESOURCE_ID" \
+    --registry-server "$ACR_LOGIN_SERVER" \
+    --registry-identity "$MI_RESOURCE_ID" \
+    --env-vars "AZURE_CLIENT_ID=${MI_CLIENT_ID}" \
+    --cpu 0.25 \
+    --memory 0.5Gi \
+    --only-show-errors >/dev/null
+fi
+
+ensure_containerapp_ingress "$WEB_APP_NAME" "internal" 8080
+ok "web deployed"
 
 API_FQDN="$(az containerapp show --name word-game-api --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 AGENT_FQDN="$(az containerapp show --name word-game-agent --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
