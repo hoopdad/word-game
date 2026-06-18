@@ -1,0 +1,21 @@
+feature: "azd-deploy"
+context: "Create a single azd up entry point in the harness repo that provisions Terraform infrastructure and deploys all sibling services into the existing Container Apps environment."
+acceptance:
+  - scenario: "Single-command orchestration"
+    given: "A developer is in word-game-harness with azd, Azure CLI, Terraform, and jq installed"
+    when: "They run azd up"
+    then: "azd provisions ../word-game-infra, exports Terraform outputs, and deploys api, agent, web, and waf without additional manual steps"
+  - scenario: "Private ACR image publishing"
+    given: "Container images must be built into a private Premium ACR with public network access disabled"
+    when: "The deployment hook runs"
+    then: "Each service image is built with az acr build and tagged with both the current harness git sha and latest"
+  - scenario: "Managed identity container app deployment"
+    given: "The shared user-assigned managed identity already has AcrPull, Cosmos DB, Key Vault, and Cognitive Services access"
+    when: "Container Apps are created or updated"
+    then: "Each app uses that identity for both runtime access and ACR pulls, with internal ingress for api/agent/web and external ingress for waf"
+nfr:
+  security: "Use managed identity and Azure CLI auth only; keep Terraform state local and do not persist secrets in repo files"
+  latency: "azd up remains a single operator command even though service images are built serially"
+affected_repos:
+  - repo: "word-game-harness"
+    scope: "Add azure.yaml orchestration, azd hook scripts, and generated Terraform output handling for multi-service deployments"

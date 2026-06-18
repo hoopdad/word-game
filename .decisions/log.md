@@ -23,3 +23,4 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
 2026-06-17 | devops: CD workflows use concurrency groups to prevent race conditions between simultaneous deploys
 2026-06-17 | devops: Active service FQDNs stored in Key Vault for WAF upstream discovery after SHA-named deploys
 2026-06-17 | security: Cosmos data-plane access uses cosmosdb_sql_role_assignment (not ARM RBAC) with built-in Data Contributor role
+2026-06-17 | devops: azd up in word-game-harness uses Terraform provision hooks plus custom az acr build/containerapp deploy scripts because private ACR and local Terraform state do not fit azd's default service deployment flow

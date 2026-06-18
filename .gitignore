@@ -3,3 +3,5 @@ tf-err.txt
 *.pyc
 __pycache__/
 .env
+.azure/tf-outputs.json
+.azure/config.json

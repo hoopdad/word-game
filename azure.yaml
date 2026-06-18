@@ -1,0 +1,20 @@
+name: word-game
+metadata:
+  template: word-game@0.0.1
+infra:
+  provider: terraform
+  path: ../word-game-infra
+hooks:
+  preprovision:
+    shell: sh
+    run: ./scripts/azd-preprovision.sh
+  postprovision:
+    shell: sh
+    run: ./scripts/azd-provision.sh
+  postup:
+    shell: sh
+    run: ./scripts/azd-deploy.sh
+workflows:
+  up:
+    steps:
+      - azd: provision
