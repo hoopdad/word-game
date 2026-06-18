@@ -85,6 +85,12 @@
       "args": ["/home/mike/source/enterprise-copilot-fleet-controller/tools/usage-tracker/server.py"],
       "env": { "PROJECT_DIR": "/home/mike/source/word-game/word-game-harness", "PROJECT_NAME": "word-game" }
     },
+    "quick-deploy": {
+      "description": "Commit, build image, deploy container app, and verify health for a single service (web/api/agent/waf) in one call.",
+      "command": "/home/mike/source/enterprise-copilot-fleet-controller/.venv/bin/python3",
+      "args": ["/home/mike/source/enterprise-copilot-fleet-controller/tools/quick-deploy/server.py"],
+      "env": { "PROJECT_DIR": "/home/mike/source/word-game/word-game-harness" }
+    },
     "git-pr-orchestrator": {
       "description": "Automate multi-repo releases: commit → push → PR → CI monitor → auto-merge.",
       "command": "/home/mike/source/enterprise-copilot-fleet-controller/.venv/bin/python3",
