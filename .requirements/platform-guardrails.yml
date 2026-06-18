@@ -53,8 +53,9 @@ pattern_constraints:
 
   cicd:
     - "Local azd up from word-game-harness orchestrates all deployments"
-    - "Local validation runs lint → security scan → test → build (fail fast) before deployment"
     - "Terraform applies locally with local state files"
-    - "CD: infra deploy first, then services"
-    - "Container images built and pushed via az acr build"
+    - "Container images built and pushed via az acr build to private ACR"
+    - "Deploy order: infra → api → agent → web → waf"
+    - "MCP deploy-local tool for programmatic deployment"
+    - "Lint, test, build run locally before deploy (pre-commit + manual)"
     - "Container images tagged with :sha and :latest"

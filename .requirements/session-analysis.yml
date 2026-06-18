@@ -1,0 +1,31 @@
+feature: "orchestration-quality"
+context: "Session analysis of 35.4M tokens in 12h revealed 90% waste from repo-wide audits and agent churn"
+acceptance:
+  - scenario: "Efficient orchestration"
+    given: "Orchestrator receives a deployment or change request"
+    when: "It dispatches work to child repos"
+    then: "Uses MCP check_repo_index + check_repo_queues first; no repo-wide file audits"
+  - scenario: "Bounded specialist work"
+    given: "A specialist agent receives a work request"
+    when: "It implements changes"
+    then: "Writes directly to named files; no prose-only output; validates with lint/test"
+  - scenario: "No autopilot questions"
+    given: "Any agent runs in autopilot mode"
+    when: "It encounters ambiguity"
+    then: "Makes reasonable assumptions and proceeds; never calls ask_user"
+nfr:
+  tokens: "< 5M input tokens per 12h operational cycle"
+  latency: "Child agent dispatch < 30s; full deploy < 15min"
+recommendations:
+  prompts_to_rewrite:
+    - "Parent orchestration prompt: require check_repo_index first; ban repo-wide audits"
+    - "AVM specialist prompt: require edits to named files + validation"
+    - "Fleet cleanup/deploy prompt: split into staged tasks with stop conditions"
+  mcp_tools_to_improve:
+    - "check_repo_index: include guardrails, agents, queue summary in one response"
+    - "check_repo_queues: include critic status, blockers, per-repo deltas"
+    - "child-agent-runner batch: return concise per-repo progress to reduce polling"
+  agent_behaviors_to_change:
+    - "Stop hoovering files (view/bash explosions)"
+    - "Stop using background task/read_agent for child orchestration"
+    - "Stop ask_user in autopilot; decide or fail fast"

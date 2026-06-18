@@ -4,7 +4,7 @@
 Full-stack Azure SaaS pattern with four repos: a React/TypeScript SPA frontend,
 a Python/FastAPI REST API, a Python AI agent service, and Terraform infrastructure.
 Deploys to Azure Container Apps with Cosmos DB for data, Entra External ID for
-authentication, and GitHub Actions CI/CD pipelines on self-hosted runners.
+authentication, and local azd deployment from word-game-harness.
 
 ## Architecture
 
@@ -22,8 +22,8 @@ The files under `.copilot/guardrails/` are the active source of truth for the pr
 
 ### Child Repo Workflow
 
-| Repo | Role | Path | Specialist Agent | Critic Agent | Deployment Agent |
-|------|------|------|------------------|--------------|------------------|
+| Repo | Role | Path | Specialist Agent | Critic Agent |
+|------|------|------|------------------|--------------|
 | word-game-waf | waf | ../word-game-waf | `.github/agents/word-game-waf-specialist.agent.md` | `.github/agents/word-game-waf-critic.agent.md` |
 | word-game-web | frontend | ../word-game-web | `.github/agents/word-game-web-specialist.agent.md` | `.github/agents/word-game-web-critic.agent.md` |
 | word-game-api | backend | ../word-game-api | `.github/agents/word-game-api-specialist.agent.md` | `.github/agents/word-game-api-critic.agent.md` |
@@ -31,6 +31,13 @@ The files under `.copilot/guardrails/` are the active source of truth for the pr
 | word-game-infra | infra | ../word-game-infra | `.github/agents/word-game-infra-specialist.agent.md` | `.github/agents/word-game-infra-critic.agent.md` |
 
 Specialist and critic agents live inside each child repo under `.github/agents/`.
+
+## Local Deployment
+
+- Full deploy: `cd word-game-harness && azd up`
+- Infra only: `azd provision`
+- Services only: `bash scripts/azd-deploy.sh`
+- Programmatic deploys: use the MCP tool `deploy-local`
 
 
 ## Your Protocol
@@ -72,10 +79,11 @@ Specialist and critic agents live inside each child repo under `.github/agents/`
 - All repositories in .repo-index.yml
 13. **Critic Scope (requirements)**:
 - All active requirement and guardrail sources
-10. **Trigger deployment agent** (after all critic-approved `work/done/` items are validated):
-    - Create a deployment request in `work/todo/` describing the CI/CD changes needed
-    - Use `start_child_agent` with the deployment role and poll with `get_child_agent_job` to build and push CI/CD workflows
-    - The deployment agent will push a feature branch and open a PR — verify the PR URL in the run result
+10. **Trigger local deployment** (after all critic-approved `work/done/` items are validated):
+    - Run `cd word-game-harness && azd up` for a full deployment
+    - Run `azd provision` when only infrastructure must be applied
+    - Run `bash scripts/azd-deploy.sh` when only services must be rolled out
+    - Use the MCP tool `deploy-local` for programmatic deployment and verify the reported result
 
 ## File Formats
 
@@ -124,10 +132,10 @@ endpoints:
 | `list_azure_resources` / `get_azure_status` / `find_error` | Infra incidents: inspect Azure inventory, runtime status, and recent failure events |
 | `inspect_container_app` / `inspect_cosmos` / `inspect_acr` | Deep Azure diagnostics when one service needs focused investigation |
 | `check_repo_index` / `sync_repo_index` / `check_repo_queues` | Verify/normalize child repo references and inspect `work/{todo,ready-for-review,done}` queue state without shell checks |
-| `check_ci_status` | After push/PR update to inspect failing workflows quickly |
-| `verify_deployment` | After CD to verify health/version endpoints are reachable |
+| `deploy-local` | Trigger the local azd deployment flow programmatically from word-game-harness |
+| `verify_deployment` | After local azd deployment to verify health/version endpoints are reachable |
 | `security_scan` | Before final merge/deploy to consolidate security findings from available scanners |
-| `orchestrate_release` / `create_prs` / `wait_for_ci` / `auto_merge_prs` | Multi-repo release flow when coordinating commit→PR→CI→merge handoff |
+| `orchestrate_release` / `create_prs` / `wait_for_ci` / `auto_merge_prs` | Multi-repo release flow when coordinating commit→PR→review→merge handoff before local deployment |
 | `log_usage` | Record orchestration events with status + timing metadata for correlation |
 | `get_usage_quality_report` | Review usage quality, anomalies, and value signals from `.metrics/usage.jsonl` |
 

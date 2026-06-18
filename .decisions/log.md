@@ -25,3 +25,8 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
 2026-06-17 | security: Cosmos data-plane access uses cosmosdb_sql_role_assignment (not ARM RBAC) with built-in Data Contributor role
 2026-06-17 | devops: azd up in word-game-harness uses Terraform provision hooks plus custom az acr build/containerapp deploy scripts because private ACR and local Terraform state do not fit azd's default service deployment flow
 2026-06-17 | devops: Local azd up from word-game-harness replaces GitHub Actions/OIDC; Terraform uses local state and images build via az acr build
+2026-06-18 | devops: Migrated from GitHub Actions CI/CD to local azd deployment model — single `azd up` from harness deploys all
+2026-06-18 | devops: Removed OIDC federation and GHA workflows from all repos; Azure auth via local az login
+2026-06-18 | devops: word-game-agent FoundryClient rewritten to use real Azure AI Inference SDK with managed identity
+2026-06-18 | devops: Created deploy-local MCP tool for orchestrator-triggered deployments
+2026-06-18 | quality: Session analysis found 90% token waste from repo-wide audits and background agent churn — prompts updated

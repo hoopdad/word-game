@@ -79,23 +79,24 @@ cost:
     - "Alerts only on actionable conditions — avoid alert fatigue"
 
 devops:
-  ci:
-    - "Local validation must run before deployment"
-    - "Validation steps: lint, security scan, unit tests, and image build verification"
+  local_quality_checks:
+    - "Run lint, security scan, unit tests, and build verification locally before deployment"
     - "Fail fast: lint and format checks run before slower test suites"
     - "Trivy image scans must pass before any image push"
 
-  cd:
+  local_deployment:
     - "Deployments run locally from word-game-harness via azd up"
-    - "Azure authentication uses the operator's local az CLI context"
-    - "Build and push container images to ACR with both :sha and :latest tags"
+    - "Use azd provision for infrastructure-only deployment"
+    - "Use bash scripts/azd-deploy.sh for service-only deployment"
+    - "Azure authentication uses the operator's local az login context"
     - "Container images are built and pushed via az acr build"
+    - "Container images are tagged with :sha and :latest"
     - "Terraform changes are planned and applied locally with local state files"
-    - "Infrastructure deployment completes before service rollout"
+    - "Deployment order is infra → api → agent → web → waf"
 
   branching:
     - "Trunk-based development: main is the only long-lived branch"
-    - "Feature branches merge via PR with required CI pass"
+    - "Feature branches merge via PR with required local validation evidence"
     - "Submodule references updated in parent repo after each child push"
 
   containers:
@@ -124,7 +125,7 @@ pre_commit:
   all:
     - "pre-commit must be installed and configured in every repo"
     - "All hooks run automatically on git commit"
-    - "CI must also run the same checks (defense in depth)"
+    - "Local validation before deploy or PR merge must run the same checks (defense in depth)"
 
 formatting:
   python:
@@ -152,7 +153,7 @@ testing:
     - "Minimum 80% code coverage target for API and agent services"
     - "pytest for all Python services"
     - "vitest for React frontend"
-    - "Tests run in CI on every push and PR"
+    - "Tests run locally before deployment and before PR merge"
 
   integration:
     - "Playwright for end-to-end browser testing of the SPA"
@@ -166,7 +167,7 @@ testing:
   infrastructure:
     - "terraform validate on every change"
     - "Checkov for security policy compliance"
-    - "terraform plan in PR — no blind applies"
+    - "terraform plan before local apply — no blind applies"
 
 architecture:
   data:
