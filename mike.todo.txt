@@ -1,0 +1,38 @@
+# Word Game Remaining Tasks
+# Generated: 2026-06-18
+
+## Deployment Issues Resolved
+- [x] ACR build fails when public_network_access_enabled=false → enabled public access
+- [x] docker push fails from outside VNet → switched to az acr build
+- [x] Azure CLI logged into wrong subscription → switched to f332a08c
+
+## Remaining Items
+
+### Infrastructure
+- [ ] ACR public_network_access_enabled was manually changed to true for builds — update acr.tf to persist this
+- [ ] Consider ACR agent pool in VNet for builds to avoid public exposure
+- [ ] Terraform has OIDC-related variables (github_repository, github_branch) that may still exist — verify removal
+
+### word-game-agent  
+- [ ] Verify FoundryChatClient actually works at runtime against GPT-4.1-mini deployment
+- [ ] agent-framework package still in requirements.txt — confirm it's needed or remove
+- [ ] Run integration test of category generation with live Foundry endpoint
+
+### word-game-waf
+- [ ] Verify WAF upstream routing actually reaches internal services (api, agent, web)
+- [ ] Test OWASP CRS rules are active
+- [ ] Configure HTTPS/TLS on external WAF ingress
+
+### word-game-web
+- [ ] Verify MSAL auth configuration matches Entra External ID setup
+- [ ] Test end-to-end auth flow through WAF → web → api
+
+### Deployment Model
+- [ ] Test full `azd up` flow (currently only ran services deploy, not terraform via azd)
+- [ ] Verify azd provision hook works with terraform's local state and tfvars
+- [ ] Consider adding `azd down` support for teardown
+- [ ] MCP deploy-local tool needs end-to-end testing
+
+### Documentation
+- [ ] Update README files in each child repo to document local deploy process
+- [ ] Merge feature/azd-deploy branches to main after validation
