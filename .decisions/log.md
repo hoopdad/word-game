@@ -31,3 +31,4 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
 2026-06-18 | devops: word-game-agent FoundryClient rewritten to use real Azure AI Inference SDK with managed identity
 2026-06-18 | devops: Created deploy-local MCP tool for orchestrator-triggered deployments
 2026-06-18 | quality: Session analysis found 90% token waste from repo-wide audits and background agent churn — prompts updated
+2026-06-18 | infra: Moved all services to external edge CAE (salmonpond) — internal-only CAE blocked public WAF access. Backend apps use internal ingress (same-env only) within the external environment. NFR deviation: CAE is external (not internal mode) but backend apps remain unexposed. Cross-env networking (edge→internal CAE) proved infeasible due to Azure's infrastructure IP addressing. WAF nginx uses $proxy_host and http:// for intra-environment upstream routing.

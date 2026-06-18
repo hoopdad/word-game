@@ -131,6 +131,7 @@ endpoints:
 | `terraform_fmt_check` / `terraform_init_validate` / `terraform_plan_check` | Infra changes: formatting, validation, and plan safety checks before PR |
 | `list_azure_resources` / `get_azure_status` / `find_error` | Infra incidents: inspect Azure inventory, runtime status, and recent failure events |
 | `inspect_container_app` / `inspect_cosmos` / `inspect_acr` | Deep Azure diagnostics when one service needs focused investigation |
+| `diagnose_container_app` / `get_container_logs` / `list_revisions` / `check_image_accessibility` / `compare_container_apps` | Container App troubleshooting: activation failures, crash loops, image pull errors, health probe failures. Use the `container-app-troubleshoot` skill for guided triage. |
 | `check_repo_index` / `sync_repo_index` / `check_repo_queues` | Verify/normalize child repo references and inspect `work/{todo,ready-for-review,done}` queue state without shell checks |
 | `deploy-local` | Trigger the local azd deployment flow programmatically from word-game-harness |
 | `verify_deployment` | After local azd deployment to verify health/version endpoints are reachable |

@@ -31,6 +31,12 @@
       "args": ["/home/mike/source/enterprise-copilot-fleet-controller/tools/azure-inspector/server.py"],
       "env": { "PROJECT_DIR": "/home/mike/source/word-game/word-game-harness" }
     },
+    "container-app-diagnostics": {
+      "description": "Deep troubleshooting for Container Apps — diagnose activation failures, pull logs, inspect revisions/replicas, verify image pulls, compare app configs.",
+      "command": "/home/mike/source/enterprise-copilot-fleet-controller/.venv/bin/python3",
+      "args": ["/home/mike/source/enterprise-copilot-fleet-controller/tools/container-app-diagnostics/server.py"],
+      "env": { "PROJECT_DIR": "/home/mike/source/word-game/word-game-harness" }
+    },
     "azure-resource-status": {
       "description": "Inventory Azure resources and inspect status/error events for troubleshooting.",
       "command": "/home/mike/source/enterprise-copilot-fleet-controller/.venv/bin/python3",

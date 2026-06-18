@@ -236,7 +236,8 @@ deploy_service \
   "$CAE_EDGE_ID" \
   "API_UPSTREAM=http://${API_FQDN}" \
   "AGENT_UPSTREAM=http://${AGENT_FQDN}" \
-  "WEB_UPSTREAM=http://${WEB_FQDN}"
+  "WEB_UPSTREAM=http://${WEB_FQDN}" \
+  "CORS_ALLOWED_ORIGIN=https://${WAF_FQDN}"
 
 WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 
