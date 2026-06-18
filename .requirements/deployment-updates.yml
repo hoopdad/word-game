@@ -1,0 +1,72 @@
+feature: "deployment-updates"
+context: "Batch of updates from next.md to get the application deployed"
+acceptance:
+  # Documentation & Consistency
+  - scenario: "CI/CD dependency documentation"
+    given: "Multi-repo project with interdependent CI/CD pipelines"
+    when: "Developer or orchestrator needs to understand build/deploy order"
+    then: "A documented CI/CD flow with dependency analysis exists and is kept current"
+
+  - scenario: "Contradictions report"
+    given: "Requirements, guardrails, agent instructions, and skills exist across repos"
+    when: "Audited for consistency"
+    then: "All contradictions between requirements and repo agents/instructions/skills are identified and resolved"
+
+  - scenario: "Tool/skill/agent enforcement"
+    given: "MCP tools, skills, and agents are defined for each repo"
+    when: "Specialist agents run"
+    then: "All .md files enforce consistent usage of tools, skills, and agents; copilot-instructions.md present in every repo"
+
+  # Infrastructure
+  - scenario: "AVM preference enforcement"
+    given: "Platform guardrails require AVM for all resources where an AVM exists"
+    when: "Infra specialist makes changes"
+    then: "Agent instructions explicitly mandate AVM-first approach; non-AVM fallback requires decision log entry"
+
+  - scenario: "Terraform errors fixed"
+    given: "tf-err.txt contains deployment errors"
+    when: "terraform apply runs"
+    then: "All errors from tf-err.txt are resolved: GlobalStandard SKU for GPT, Foundry project config, subnet delegation, Cosmos role, Key Vault access, Key Vault secret args, shell compatibility"
+
+  - scenario: "Container app deployment split"
+    given: "Container app resources currently defined in word-game-infra"
+    when: "Service CD workflows run"
+    then: "Container app resources are created/managed by each service's CD workflow via az containerapp CLI; only Container App Environments remain in infra TF"
+
+  # DevOps
+  - scenario: "GitHub secrets configured"
+    given: "All repos need Azure OIDC and deployment secrets"
+    when: "CI/CD workflows run"
+    then: "All required secrets (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, ACR_LOGIN_SERVER, RESOURCE_GROUP) are set per-repo via gh secret set with consistent naming"
+
+  - scenario: "SHA-named container app CD"
+    given: "A service CD workflow triggers on main branch"
+    when: "Deployment executes"
+    then: "A new container app is created with SHA in the name (e.g., wordgame-api-v<sha>); old container app is deleted in parallel; WAF excluded from parallel pattern"
+
+  - scenario: "Entra ID local setup"
+    given: "Entra app registrations require elevated permissions"
+    when: "Initial environment setup"
+    then: "A local script (scripts/setup-entra.sh) creates all Entra resources from the workstation using logged-in az cli; Entra resources removed from Terraform"
+
+  - scenario: "MCP tools for external access"
+    given: "Child repos need Azure CLI, GitHub API, and Terraform access during specialist runs"
+    when: "Specialist agents execute"
+    then: "Each repo that requires external system access has local MCP tool configurations"
+
+nfr:
+  security: "OIDC federation only; no secrets stored in code; Entra setup from local workstation only"
+  latency: "CI < 5min, CD < 15min"
+  consistency: "All repos use consistent secret names, agent instructions, and MCP tool patterns"
+
+affected_repos:
+  - repo: "word-game-infra"
+    scope: "Fix TF errors, enforce AVM, split out container app resources, add agent/instruction files"
+  - repo: "word-game-web"
+    scope: "Update CD workflow for SHA-named deploy pattern, add copilot-instructions.md, MCP tools"
+  - repo: "word-game-api"
+    scope: "Update CD workflow for SHA-named deploy pattern, add copilot-instructions.md, MCP tools"
+  - repo: "word-game-agent"
+    scope: "Update CD workflow for SHA-named deploy pattern, add copilot-instructions.md, MCP tools"
+  - repo: "word-game-waf"
+    scope: "Update CD workflow for WAF-specific deploy (no parallel), add copilot-instructions.md"

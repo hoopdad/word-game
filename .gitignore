@@ -1,0 +1,5 @@
+venv/
+tf-err.txt
+*.pyc
+__pycache__/
+.env
