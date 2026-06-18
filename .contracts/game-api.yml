@@ -70,17 +70,19 @@ endpoints:
   # Category Configuration
   - method: "GET"
     path: "/api/categories/config"
-    description: "Get current category source URLs"
+    description: "Get current category source URLs and generated categories"
     response:
-      200: { urls: ["string"] }
+      200: { urls: ["string"], generated_categories: ["string"], source: "string" }
 
   - method: "PUT"
     path: "/api/categories/config"
-    description: "Update category source URLs"
+    description: "Update category source URLs and regenerate categories"
     request:
       urls: { type: "array", items: "string", required: true }
+      num_categories: { type: "integer", required: false, default: 3 }
     response:
-      200: { urls: ["string"] }
+      200: { urls: ["string"], generated_categories: ["string"], source: "string" }
+      400: { detail: "string" }
 
   # Health
   - method: "GET"
