@@ -149,7 +149,7 @@ deploy_service \
 deploy_service \
   web \
   "$WEB_DIR" \
-  80 \
+  8080 \
   internal
 
 API_FQDN="$(az containerapp show --name word-game-api --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
@@ -159,7 +159,7 @@ WEB_FQDN="$(az containerapp show --name word-game-web --resource-group "$RG" --q
 deploy_service \
   waf \
   "$WAF_DIR" \
-  443 \
+  8080 \
   external \
   "API_UPSTREAM=https://${API_FQDN}" \
   "AGENT_UPSTREAM=https://${AGENT_FQDN}" \
