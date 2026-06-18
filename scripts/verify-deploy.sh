@@ -164,6 +164,35 @@ else
     fail "MSAL redirectUri" "Uses build-time env var — may be wrong in production"
   fi
 
+  # Check MSAL scope has real API client ID (not empty api:///access_as_user)
+  MSAL_SCOPE=$(echo "$BUNDLE_CONTENT" | grep -oP 'api://[^"]+' | head -1 || echo "")
+  if [ -z "$MSAL_SCOPE" ]; then
+    fail "MSAL scope" "No api:// scope found in bundle"
+  elif echo "$MSAL_SCOPE" | grep -qP 'api:///'; then
+    fail "MSAL scope" "Empty client ID: '$MSAL_SCOPE' — VITE_MSAL_API_CLIENT_ID not set at build time"
+  elif echo "$MSAL_SCOPE" | grep -qP 'api://[0-9a-f-]+/access_as_user'; then
+    pass "MSAL scope = $MSAL_SCOPE"
+  else
+    warn "MSAL scope" "Unexpected format: $MSAL_SCOPE"
+  fi
+
+  # Check MSAL clientId is set (not empty string)
+  MSAL_CLIENT=$(echo "$BUNDLE_CONTENT" | grep -oP 'clientId:"[^"]*"' | grep -v 'clientId:""' | head -1 || echo "")
+  if [ -n "$MSAL_CLIENT" ]; then
+    pass "MSAL clientId is set"
+  else
+    fail "MSAL clientId" "Empty — VITE_MSAL_CLIENT_ID not set at build time"
+  fi
+
+  # Check no acquireTokenRedirect in app code (causes infinite loops)
+  REDIRECT_COUNT=$(echo "$BUNDLE_CONTENT" | grep -oP 'acquireTokenRedirect\(' | wc -l)
+  POPUP_COUNT=$(echo "$BUNDLE_CONTENT" | grep -oP 'acquireTokenPopup\(' | wc -l)
+  if [ "$REDIRECT_COUNT" -gt 0 ] && [ "$POPUP_COUNT" -eq 0 ]; then
+    fail "MSAL token fallback" "Uses acquireTokenRedirect without popup — may cause infinite refresh loops"
+  else
+    pass "MSAL token fallback uses popup (no redirect loops)"
+  fi
+
   # Check WS URL uses runtime derivation
   if echo "$BUNDLE_CONTENT" | grep -q 'window.location.host'; then
     pass "WebSocket URL uses runtime derivation"
