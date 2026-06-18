@@ -26,7 +26,7 @@ read_output() {
 RG="$(read_output '.resource_group_name.value')"
 ACR_LOGIN_SERVER="$(read_output '.acr_login_server.value')"
 ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
-CAE_ID="$(read_output '.container_app_environment_ids.value.internal')"
+CAE_EDGE_ID="$(read_output '.container_app_environment_ids.value.edge')"
 MI_CLIENT_ID="$(read_output '.managed_identity_client_id.value')"
 COSMOS_ENDPOINT="$(read_output '.cosmos_endpoint.value')"
 KV_URI="$(read_output '.key_vault_uri.value')"
@@ -47,7 +47,7 @@ TAG="${SHA:-latest}"
 info "Deployment configuration"
 info "  Resource Group: $RG"
 info "  ACR: $ACR_LOGIN_SERVER"
-info "  Container App Environment: $CAE_ID"
+info "  Container App Environment (edge): $CAE_EDGE_ID"
 info "  Managed Identity Client ID: $MI_CLIENT_ID"
 info "  Image Tag: $TAG"
 
@@ -56,11 +56,17 @@ ensure_containerapp_ingress() {
   local ingress_type="$2"
   local port="$3"
 
+  local allow_insecure_flag=""
+  if [ "$ingress_type" = "internal" ]; then
+    allow_insecure_flag="--allow-insecure"
+  fi
+
   az containerapp ingress update \
     --name "$app_name" \
     --resource-group "$RG" \
     --type "$ingress_type" \
     --target-port "$port" \
+    $allow_insecure_flag \
     --only-show-errors >/dev/null
 }
 
@@ -69,7 +75,8 @@ deploy_service() {
   local service_dir="$2"
   local port="$3"
   local ingress_type="$4"
-  shift 4
+  local cae_id="$5"
+  shift 5
 
   [ -d "$service_dir" ] || die "Service directory not found: $service_dir"
 
@@ -105,7 +112,7 @@ deploy_service() {
     az containerapp create \
       --name "$app_name" \
       --resource-group "$RG" \
-      --environment "$CAE_ID" \
+      --environment "$cae_id" \
       --image "$image_ref" \
       --target-port "$port" \
       --ingress "$ingress_type" \
@@ -134,6 +141,7 @@ deploy_service \
   "$API_DIR" \
   8000 \
   internal \
+  "$CAE_EDGE_ID" \
   "COSMOS_ENDPOINT=${COSMOS_ENDPOINT}" \
   "COSMOS_DATABASE_NAME=word-game" \
   "KEY_VAULT_URL=${KV_URI}"
@@ -143,6 +151,7 @@ deploy_service \
   "$AGENT_DIR" \
   8000 \
   internal \
+  "$CAE_EDGE_ID" \
   "AZURE_FOUNDRY_URL=https://wordgamedevfoundry.cognitiveservices.azure.com/" \
   "KEY_VAULT_URL=${KV_URI}"
 
@@ -150,7 +159,8 @@ deploy_service \
   web \
   "$WEB_DIR" \
   8080 \
-  internal
+  internal \
+  "$CAE_EDGE_ID"
 
 API_FQDN="$(az containerapp show --name word-game-api --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 AGENT_FQDN="$(az containerapp show --name word-game-agent --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
@@ -161,9 +171,10 @@ deploy_service \
   "$WAF_DIR" \
   8080 \
   external \
-  "API_UPSTREAM=https://${API_FQDN}" \
-  "AGENT_UPSTREAM=https://${AGENT_FQDN}" \
-  "WEB_UPSTREAM=https://${WEB_FQDN}"
+  "$CAE_EDGE_ID" \
+  "API_UPSTREAM=http://${API_FQDN}" \
+  "AGENT_UPSTREAM=http://${AGENT_FQDN}" \
+  "WEB_UPSTREAM=http://${WEB_FQDN}"
 
 WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 
