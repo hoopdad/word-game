@@ -196,6 +196,25 @@ fi
 echo
 
 # ──────────────────────────────────────────────
+# 8. Response shape validation (apiClient extraction)
+# ──────────────────────────────────────────────
+echo "── Response Shape Validation ──"
+
+# Check that apiClient methods extracting data from response use .data.FIELD, not bare .data
+# Pattern: methods that return response.data directly (no field access) are risky — API
+# returns wrapped objects like {scores: [...]} not raw arrays
+RAW_DATA_RETURNS=$(grep -nP 'return\s+response\.data\s*$' "$API_CLIENT" || true)
+if [ -n "$RAW_DATA_RETURNS" ]; then
+  echo "$RAW_DATA_RETURNS" | while IFS= read -r line; do
+    lineno=$(echo "$line" | cut -d: -f1)
+    fail "apiClient.ts:${lineno}" "Returns raw response.data — API likely wraps in {field: [...]}"
+  done
+else
+  pass "All apiClient methods extract specific fields from response"
+fi
+echo
+
+# ──────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────
 echo "══════════════════════════════════════════════════════════"
