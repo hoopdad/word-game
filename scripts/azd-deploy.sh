@@ -246,3 +246,12 @@ WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --q
 
 ok "Deployment complete"
 info "WAF endpoint: https://${WAF_FQDN}"
+
+# ──────────────────────────────────────────────
+# Post-deploy verification (automatic)
+# ──────────────────────────────────────────────
+echo ""
+info "Running post-deploy verification..."
+"$SCRIPT_DIR/check-msal-config.sh" || true
+echo ""
+"$SCRIPT_DIR/verify-deploy.sh" "$WAF_FQDN" || true
