@@ -152,7 +152,7 @@ deploy_service \
   "COSMOS_DATABASE_NAME=word-game" \
   "KEY_VAULT_URL=${KV_URI}" \
   "OIDC_METADATA_URL=https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0/.well-known/openid-configuration" \
-  "JWT_ISSUER=https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0" \
+  "JWT_ISSUER=" \
   "JWT_AUDIENCE=api://${ENTRA_API_CLIENT_ID}" \
   "JWT_REQUIRED_SCOPE=access_as_user"
 
