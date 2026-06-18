@@ -1,21 +1,28 @@
 # Word Game Remaining Tasks
 # Generated: 2026-06-18
+# Updated: 2026-06-19
 
 ## Deployment Issues Resolved
 - [x] ACR build fails when public_network_access_enabled=false → enabled public access
 - [x] docker push fails from outside VNet → switched to az acr build
 - [x] Azure CLI logged into wrong subscription → switched to f332a08c
+- [x] ACR public_network_access_enabled persisted in acr.tf
+- [x] VNet AVM module replaced with native resources — zero drift
+- [x] Cosmos local_authentication_disabled fixed to true
+- [x] Foundry associated_projects drift fixed
+- [x] Private endpoint for CAE created + DNS zone + VNet link
+- [x] Edge CAE removed (never existed in Azure)
+- [x] KV secrets removed from TF (private KV, runtime-managed)
+- [x] Role assignment imported (no more 409)
 
 ## Remaining Items
 
 ### Infrastructure
-- [ ] ACR public_network_access_enabled was manually changed to true for builds — update acr.tf to persist this
 - [ ] Consider ACR agent pool in VNet for builds to avoid public exposure
-- [ ] Terraform has OIDC-related variables (github_repository, github_branch) that may still exist — verify removal
+- [ ] Remove remaining AVM modules if they cause issues (cosmos, key-vault, foundry all stable)
 
 ### word-game-agent  
 - [ ] Verify FoundryChatClient actually works at runtime against GPT-4.1-mini deployment
-- [ ] agent-framework package still in requirements.txt — confirm it's needed or remove
 - [ ] Run integration test of category generation with live Foundry endpoint
 
 ### word-game-waf
