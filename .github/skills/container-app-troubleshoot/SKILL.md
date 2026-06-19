@@ -158,6 +158,40 @@ Once root cause is identified, suggest specific fixes:
 - **Rebuild image**: `az acr build --registry <acr> --image <repo>:<tag> <dir>`
 - **Check infra**: `azd provision` to ensure infrastructure is correct
 
+## ⚠️ Anti-Pattern: Never Use `sleep` for Deployment Waits
+
+**WRONG** (wastes tokens and wall-clock time):
+```bash
+sleep 30; az containerapp revision show --name $APP ...
+sleep 60; az containerapp revision show --name $APP ...
+```
+
+**CORRECT** (poll with timeout):
+```bash
+TIMEOUT=120; ELAPSED=0; APP="word-game-waf"; RG="wordgame-dev-rg"
+REV=$(az containerapp show --name $APP -g $RG --query properties.latestRevisionName -o tsv)
+while [ $ELAPSED -lt $TIMEOUT ]; do
+  STATE=$(az containerapp revision show --name $APP -g $RG --revision $REV \
+    --query properties.runningState -o tsv 2>/dev/null || echo "Unknown")
+  case "$STATE" in
+    Running) echo "✅ $APP running"; break ;;
+    Failed)  echo "❌ $APP failed"; break ;;
+    *)       sleep 10; ELAPSED=$((ELAPSED + 10)) ;;
+  esac
+done
+[ "$STATE" = "Running" ] || exit 1
+```
+
+This saves 3-5 turns per deployment by avoiding repeated "wait and check" cycles.
+
+## Token Efficiency Rules
+
+1. **Consult `.copilot/topology.md` first** — it has all resource names, file paths, and IDs
+2. **Never use `find` to locate known files** — paths are documented in topology.md
+3. **Batch Azure CLI queries** — combine multiple `--query` fields in one call
+4. **Use `--query` and `-o tsv`** — avoid piping full JSON to jq when only one field is needed
+5. **One diagnostic call first** — `diagnose_container_app` returns everything; don't call `get_container_logs` + `list_revisions` + `check_image_accessibility` separately unless the one-shot diagnostic is ambiguous
+
 ## Output Format
 
 Always present findings as:

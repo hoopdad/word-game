@@ -274,10 +274,52 @@ curl -s "https://login.microsoftonline.com/<tenant>/v2.0/.well-known/openid-conf
 
 After fixing code:
 
-1. **Rebuild web**: `az acr build --registry <acr> --image word-game-web:<tag> --build-arg VITE_MSAL_CLIENT_ID=<id> ...`
-2. **Deploy web**: `az containerapp update --name word-game-web --image <acr>.azurecr.io/word-game-web:<tag>`
+1. **Rebuild web**: `az acr build --registry wordgamedevacr --image word-game-web:<tag> --build-arg VITE_MSAL_CLIENT_ID=b4d29652-ff30-43ea-90f6-830cc340f866 --build-arg VITE_MSAL_AUTHORITY=https://login.microsoftonline.com/d52a6857-5f44-4f8f-bcc8-420952d3225d --build-arg VITE_MSAL_API_CLIENT_ID=16f3fd41-cddd-44fb-a149-14314e62f7a8 ../word-game-web`
+2. **Deploy web**: `az containerapp update --name word-game-web -g wordgame-dev-rg --image wordgamedevacr.azurecr.io/word-game-web:<tag>`
 3. **User action**: Hard-refresh browser (Ctrl+Shift+R) to load new JS bundle
 4. **If token issues**: Clear browser sessionStorage → re-login for fresh tokens
+
+## Pre-Deploy Validation (Run BEFORE building)
+
+Before every web image build, verify these in ONE pass:
+
+```bash
+# 1. Source code checks (2 seconds)
+grep -q 'acquireTokenPopup' src/hooks/useAuth.ts || echo "FAIL: must use popup not redirect"
+grep -q 'window.location.origin' src/App.tsx || echo "FAIL: redirectUri must be runtime-derived"
+grep -q 'VITE_MSAL_API_CLIENT_ID' src/hooks/useAuth.ts || echo "FAIL: scope must use API client ID"
+
+# 2. Dockerfile checks (instant)
+grep -n 'ARG VITE_MSAL' Dockerfile | head -5  # Must appear BEFORE RUN npm run build
+
+# 3. Entra registration checks (5 seconds)
+az ad app show --id b4d29652-ff30-43ea-90f6-830cc340f866 \
+  --query '{spa:spa.redirectUris, audience:signInAudience}' -o json
+# spa.redirectUris MUST include the production WAF FQDN + /welcome
+```
+
+If any check fails, fix BEFORE building. This eliminates the build→deploy→debug→rebuild loop
+that consumed 5+ iterations in past sessions.
+
+## Word-Game Specific IDs (copy-paste ready)
+
+```
+WEB_CLIENT_ID=b4d29652-ff30-43ea-90f6-830cc340f866
+API_CLIENT_ID=16f3fd41-cddd-44fb-a149-14314e62f7a8
+TENANT_ID=d52a6857-5f44-4f8f-bcc8-420952d3225d
+AUTHORITY=https://login.microsoftonline.com/d52a6857-5f44-4f8f-bcc8-420952d3225d
+SCOPE=api://16f3fd41-cddd-44fb-a149-14314e62f7a8/access_as_user
+WAF_FQDN=word-game-waf.salmonpond-f3d80363.centralus.azurecontainerapps.io
+REDIRECT_URI=https://word-game-waf.salmonpond-f3d80363.centralus.azurecontainerapps.io/welcome
+```
+
+## Token Efficiency Rules
+
+1. **Consult `.copilot/topology.md`** before searching — all file paths and IDs are there
+2. **Never run `find` for known files** — useAuth.ts, App.tsx, Dockerfile locations are fixed
+3. **Validate BEFORE building** — the pre-deploy checks above take 7 seconds vs 3+ minutes per failed build cycle
+4. **One `az ad app show` call with compound `--query`** — never multiple calls for different fields
+5. **Check deployed bundle with one curl** — `curl -s "$WAF/" | grep -oP '/assets/index-[^"]+\.js'` then inspect
 
 ## Output Format
 
