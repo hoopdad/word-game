@@ -146,3 +146,23 @@ done
 6. **OWASP CRS 911100**: Blocks PUT/PATCH/DELETE by default — must exclude for API paths
 7. **ACR access**: `public_network_access_enabled=true` needed for `az acr build`
 8. **nginx map_hash_bucket_size**: Set to 128 for long ACA FQDNs
+
+## Child Agent Dispatch Model
+
+Use `phase="full"` for the standard workflow (preferred):
+```
+start_child_agents_batch(repos=["word-game-api", "word-game-web"], phase="full")
+```
+
+This runs a single copilot session per repo that:
+1. Picks first item from `work/todo/`
+2. **Specialist phase**: Implements the change
+3. **Critic phase**: 5-tier review (objective → requirements → failure modes → security → architecture)
+4. If FAIL → specialist fixes, re-validates (up to 3 cycles per item)
+5. If PASS → moves to `work/done/`, picks next item from `work/todo/`
+6. Exits when `work/todo/` is empty
+
+Available phases:
+- `phase="full"` — integrated specialist+critic loop (default for production use)
+- `phase="specialist"` — specialist only, moves to `work/ready-for-review/`
+- `phase="critic"` — critic only, picks from `work/ready-for-review/`
