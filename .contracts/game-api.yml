@@ -27,6 +27,16 @@ endpoints:
     response:
       200: { available: "boolean" }
 
+  - method: "PUT"
+    path: "/api/users/profile"
+    description: "Update the authenticated user's display name"
+    request:
+      display_name: { type: "string", required: true, min_length: 2, max_length: 20 }
+    response:
+      200: { id: "string", display_name: "string" }
+      409: { error: "string", detail: "Name already taken" }
+      401: { error: "Unauthorized" }
+
   # Game Management
   - method: "GET"
     path: "/api/game/status"
@@ -96,3 +106,15 @@ endpoints:
     description: "Build version"
     response:
       200: { build: "string" }
+
+  # Admin/Diagnostic
+  - method: "GET"
+    path: "/api/admin/cosmos-query"
+    description: "Read-only Cosmos DB diagnostic query (SELECT only)"
+    request_params:
+      container: { type: "string", required: true }
+      query: { type: "string", required: true }
+    response:
+      200: { results: ["object"] }
+      400: { detail: "Only SELECT queries allowed" }
+      401: { error: "Unauthorized" }

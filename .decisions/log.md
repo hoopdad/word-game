@@ -32,3 +32,6 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
 2026-06-18 | devops: Created deploy-local MCP tool for orchestrator-triggered deployments
 2026-06-18 | quality: Session analysis found 90% token waste from repo-wide audits and background agent churn — prompts updated
 2026-06-18 | infra: Moved all services to external edge CAE (salmonpond) — internal-only CAE blocked public WAF access. Backend apps use internal ingress (same-env only) within the external environment. NFR deviation: CAE is external (not internal mode) but backend apps remain unexposed. Cross-env networking (edge→internal CAE) proved infeasible due to Azure's infrastructure IP addressing. WAF nginx uses $proxy_host and http:// for intra-environment upstream routing.
+2026-06-19 | data: API stores (UserStore, CategoryConfigStore) must persist to Cosmos DB — in-memory-only caused data loss on container restart (display names, category configs lost)
+2026-06-19 | architecture: Category config save flow changed to async — URLs persist to Cosmos immediately, agent generation runs fire-and-forget in background task; frontend no longer blocks on agent response
+2026-06-19 | feature: Profile page added — users can change display_name post-registration with same validation rules (2-20 chars, alphanumeric + spaces, unique)
