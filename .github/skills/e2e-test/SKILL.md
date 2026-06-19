@@ -1,3 +1,8 @@
+---
+name: e2e-test
+description: Run authenticated end-to-end API tests against the deployed word-game environment. Validates all critical API flows through the WAF with real Entra tokens. Use after deployments, when verifying bug fixes, or as a pre-merge gate.
+---
+
 # E2E Test Skill
 
 ## Purpose
