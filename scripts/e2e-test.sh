@@ -36,23 +36,43 @@ echo "  Scope:  ${API_SCOPE}"
 echo
 
 echo "── Acquiring Token ──"
-TOKEN=$(az account get-access-token --resource "api://${API_CLIENT_ID}" --query accessToken -o tsv 2>/dev/null || echo "")
+TOKEN=""
 
+# Method 1: Environment variable (for CI/automated testing)
+if [ -n "${E2E_TOKEN:-}" ]; then
+  TOKEN="$E2E_TOKEN"
+  echo "  ✅ Token from E2E_TOKEN env var (${#TOKEN} chars)"
+fi
+
+# Method 2: Service principal credentials (for CI)
+if [ -z "$TOKEN" ] && [ -n "${E2E_SP_CLIENT_ID:-}" ] && [ -n "${E2E_SP_CLIENT_SECRET:-}" ]; then
+  TENANT_ID="${E2E_SP_TENANT_ID:-d52a6857-5f44-4f8f-bcc8-420952d3225d}"
+  TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=client_credentials&client_id=${E2E_SP_CLIENT_ID}&client_secret=${E2E_SP_CLIENT_SECRET}&scope=api://${API_CLIENT_ID}/.default" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
+  if [ -n "$TOKEN" ]; then
+    echo "  ✅ Token from service principal (${#TOKEN} chars)"
+  fi
+fi
+
+# Method 3: az CLI (for local dev with consent)
 if [ -z "$TOKEN" ]; then
-  echo "  ⚠️  Could not acquire token via az CLI."
-  echo "  Trying with scope parameter..."
-  TOKEN=$(az account get-access-token --scope "${API_SCOPE}" --query accessToken -o tsv 2>/dev/null || echo "")
+  TOKEN=$(timeout 10 az account get-access-token --resource "api://${API_CLIENT_ID}" --query accessToken -o tsv 2>/dev/null || echo "")
+  if [ -n "$TOKEN" ] && [ "${#TOKEN}" -gt 100 ] && echo "$TOKEN" | grep -q '^eyJ'; then
+    echo "  ✅ Token from az CLI (${#TOKEN} chars)"
+  else
+    TOKEN=""
+  fi
 fi
 
 if [ -z "$TOKEN" ]; then
-  echo "  ❌ Cannot acquire token. Ensure you are logged in with: az login"
-  echo "     and have consent for scope: ${API_SCOPE}"
-  echo ""
-  echo "  Falling back to unauthenticated tests (expect 401)..."
+  echo "  ⚠️  No token available. Running unauthenticated validation mode."
+  echo "     Set E2E_TOKEN, or E2E_SP_CLIENT_ID+E2E_SP_CLIENT_SECRET, or run 'az login' with API consent."
+  echo "     Unauthenticated mode verifies API returns 401 (not 500) on protected endpoints."
   AUTH_HEADER=""
   AUTHENTICATED=false
 else
-  echo "  ✅ Token acquired (${#TOKEN} chars)"
   AUTH_HEADER="Authorization: Bearer ${TOKEN}"
   AUTHENTICATED=true
 fi
@@ -142,7 +162,15 @@ if [ "$AUTHENTICATED" = "true" ]; then
     fail "GET /api/users/active" "Response missing 'users' field"
   fi
 else
-  skip "GET /api/users/active" "No token"
+  # Unauthenticated mode: verify 401 (not 500 which indicates backend failure)
+  UNAUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/users/active" 2>/dev/null)
+  if [ "$UNAUTH_CODE" = "401" ]; then
+    pass "GET /api/users/active → 401 (API healthy, auth required)"
+  elif [ "$UNAUTH_CODE" = "500" ]; then
+    fail "GET /api/users/active" "500 = backend error (Cosmos unreachable?)"
+  else
+    fail "GET /api/users/active" "Expected 401, got $UNAUTH_CODE"
+  fi
 fi
 echo
 
@@ -158,7 +186,15 @@ if [ "$AUTHENTICATED" = "true" ]; then
     fail "GET /api/categories/config" "Response missing expected fields (urls/generated_categories/source)"
   fi
 else
-  skip "GET /api/categories/config" "No token"
+  # Unauthenticated mode: verify 401 (not 500)
+  UNAUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/categories/config" 2>/dev/null)
+  if [ "$UNAUTH_CODE" = "401" ]; then
+    pass "GET /api/categories/config → 401 (API healthy, auth required)"
+  elif [ "$UNAUTH_CODE" = "500" ]; then
+    fail "GET /api/categories/config" "500 = backend error (Cosmos unreachable?)"
+  else
+    fail "GET /api/categories/config" "Expected 401, got $UNAUTH_CODE"
+  fi
 fi
 echo
 
