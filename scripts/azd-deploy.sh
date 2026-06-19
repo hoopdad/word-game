@@ -140,7 +140,7 @@ WAF_DIR="$(cd "$HARNESS_DIR/../word-game-waf" && pwd)"
 ENTRA_WEB_CLIENT_ID="${ENTRA_WEB_CLIENT_ID:-b4d29652-ff30-43ea-90f6-830cc340f866}"
 ENTRA_API_CLIENT_ID="${ENTRA_API_CLIENT_ID:-16f3fd41-cddd-44fb-a149-14314e62f7a8}"
 ENTRA_TENANT_ID="${ENTRA_TENANT_ID:-d52a6857-5f44-4f8f-bcc8-420952d3225d}"
-MSAL_AUTHORITY="https://login.microsoftonline.com/${ENTRA_TENANT_ID}"
+MSAL_AUTHORITY="https://login.microsoftonline.com/common"
 
 deploy_service \
   api \
@@ -151,7 +151,7 @@ deploy_service \
   "COSMOS_ENDPOINT=${COSMOS_ENDPOINT}" \
   "COSMOS_DATABASE_NAME=word-game" \
   "KEY_VAULT_URL=${KV_URI}" \
-  "OIDC_METADATA_URL=https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0/.well-known/openid-configuration" \
+  "OIDC_METADATA_URL=https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration" \
   "JWT_ISSUER=" \
   "JWT_AUDIENCE=${ENTRA_API_CLIENT_ID}" \
   "JWT_REQUIRED_SCOPE=access_as_user"

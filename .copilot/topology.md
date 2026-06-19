@@ -33,7 +33,8 @@ Agents should consult this FIRST before searching for files.
 | API | 16f3fd41-cddd-44fb-a149-14314e62f7a8 | Token validation |
 | Tenant | d52a6857-5f44-4f8f-bcc8-420952d3225d | Directory |
 
-- Authority: `https://login.microsoftonline.com/d52a6857-5f44-4f8f-bcc8-420952d3225d`
+- Authority: `https://login.microsoftonline.com/common`
+- Supported accounts: Personal Microsoft accounts + organizational (AzureADandPersonalMicrosoftAccount)
 - API Scope: `api://16f3fd41-cddd-44fb-a149-14314e62f7a8/access_as_user`
 - Redirect URIs (SPA platform): production WAF FQDN + `/welcome`
 

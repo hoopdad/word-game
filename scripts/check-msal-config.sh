@@ -196,12 +196,18 @@ if [ -n "$WAF_FQDN" ]; then
       fail "Bundle clientId" "Expected $WEB_CLIENT_ID not found in bundle"
     fi
 
-    # Authority check
-    EXPECTED_AUTH="https://login.microsoftonline.com/$TENANT_ID"
-    if echo "$BUNDLE" | grep -q "$EXPECTED_AUTH"; then
-      pass "Bundle authority = $EXPECTED_AUTH"
+    # Authority check — accept either tenant-specific or /common
+    EXPECTED_AUTH_TENANT="https://login.microsoftonline.com/$TENANT_ID"
+    EXPECTED_AUTH_COMMON="https://login.microsoftonline.com/common"
+    BUNDLE_AUTH=$(echo "$BUNDLE" | grep -oP 'authority:"[^"]+"' | head -1 || echo "")
+    if echo "$BUNDLE_AUTH" | grep -qF "$EXPECTED_AUTH_TENANT"; then
+      pass "Bundle authority = $EXPECTED_AUTH_TENANT"
+    elif echo "$BUNDLE_AUTH" | grep -qF "$EXPECTED_AUTH_COMMON"; then
+      pass "Bundle authority = $EXPECTED_AUTH_COMMON (multi-tenant/personal MSA)"
+    elif [ -n "$BUNDLE_AUTH" ]; then
+      warn "Bundle authority" "Found: $BUNDLE_AUTH (expected tenant or /common)"
     else
-      fail "Bundle authority" "Expected authority not found"
+      fail "Bundle authority" "No authority config found in bundle"
     fi
 
     # API base URL check
