@@ -8,6 +8,17 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
+# Optional first argument selects a single service to deploy (default: all).
+DEPLOY_TARGET="${1:-all}"
+case "$DEPLOY_TARGET" in
+  all|api|agent|web|waf) ;;
+  *) die "Invalid deploy target '$DEPLOY_TARGET' (expected: all|api|agent|web|waf)" ;;
+esac
+
+should_deploy() {
+  [ "$DEPLOY_TARGET" = "all" ] || [ "$DEPLOY_TARGET" = "$1" ]
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TF_OUTPUT_FILE="$HARNESS_DIR/.azure/tf-outputs.json"
@@ -142,6 +153,7 @@ ENTRA_API_CLIENT_ID="${ENTRA_API_CLIENT_ID:-16f3fd41-cddd-44fb-a149-14314e62f7a8
 ENTRA_TENANT_ID="${ENTRA_TENANT_ID:-d52a6857-5f44-4f8f-bcc8-420952d3225d}"
 MSAL_AUTHORITY="https://login.microsoftonline.com/common"
 
+if should_deploy api; then
 deploy_service \
   api \
   "$API_DIR" \
@@ -155,7 +167,9 @@ deploy_service \
   "JWT_ISSUER=" \
   "JWT_AUDIENCE=${ENTRA_API_CLIENT_ID}" \
   "JWT_REQUIRED_SCOPE=access_as_user"
+fi
 
+if should_deploy agent; then
 deploy_service \
   agent \
   "$AGENT_DIR" \
@@ -164,7 +178,9 @@ deploy_service \
   "$CAE_EDGE_ID" \
   "AZURE_FOUNDRY_URL=https://wordgamedevfoundry.cognitiveservices.azure.com/" \
   "KEY_VAULT_URL=${KV_URI}"
+fi
 
+if should_deploy web; then
 # Resolve WAF FQDN for MSAL redirect URI (WAF app must exist from prior deploy)
 WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
 if [ -z "${WAF_FQDN:-}" ]; then
@@ -223,10 +239,13 @@ fi
 
 ensure_containerapp_ingress "$WEB_APP_NAME" "internal" 8080
 ok "web deployed"
+fi
 
+if should_deploy waf; then
 API_FQDN="$(az containerapp show --name word-game-api --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 AGENT_FQDN="$(az containerapp show --name word-game-agent --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
 WEB_FQDN="$(az containerapp show --name word-game-web --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
+WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
 
 deploy_service \
   waf \
@@ -241,17 +260,20 @@ deploy_service \
 
 # WAF is the public entry point — never scale to zero
 az containerapp update --name word-game-waf --resource-group "$RG" --min-replicas 1 --only-show-errors -o none
+fi
 
-WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors)"
+WAF_FQDN="$(az containerapp show --name word-game-waf --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv --only-show-errors 2>/dev/null || true)"
 
 ok "Deployment complete"
-info "WAF endpoint: https://${WAF_FQDN}"
+if [ -n "${WAF_FQDN:-}" ]; then info "WAF endpoint: https://${WAF_FQDN}"; fi
 
 # ──────────────────────────────────────────────
-# Post-deploy verification (automatic)
+# Post-deploy verification (only for full or waf deploys)
 # ──────────────────────────────────────────────
-echo ""
-info "Running post-deploy verification..."
-"$SCRIPT_DIR/check-msal-config.sh" || true
-echo ""
-"$SCRIPT_DIR/verify-deploy.sh" "$WAF_FQDN" || true
+if should_deploy waf && [ -n "${WAF_FQDN:-}" ]; then
+  echo ""
+  info "Running post-deploy verification..."
+  "$SCRIPT_DIR/check-msal-config.sh" || true
+  echo ""
+  "$SCRIPT_DIR/verify-deploy.sh" "$WAF_FQDN" || true
+fi

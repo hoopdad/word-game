@@ -1,0 +1,82 @@
+feature: "Fix start-game timeout and active-user presence flapping"
+context: >
+  Two production bugs reported against the deployed word-game (rev word-game-api--0000014).
+  (1) Clicking "Start Game" throws AxiosError "timeout of 10000ms exceeded" and the game
+  never starts. (2) Active-user presence flaps: a user does not appear to others on login,
+  and reloading the dashboard hides the other user until that other user also reloads.
+  User directive: a user must remain "active" until 10 minutes (600s) of inactivity.
+
+root_cause_analysis:
+  bug1_start_game_timeout:
+    - "Frontend axios timeout is 10000ms (word-game-web/src/services/apiClient.ts:20)."
+    - "POST /api/game/start path is correct (singular) — this is a latency hang, not 404/405/502 (route-flow one-pass diagnostic returned 401 in 0.2s, not 404)."
+    - "CATEGORY_AGENT_URL is unset on the deployed API, so category generation returns instantly; that 30s timeout is NOT the cause."
+    - "GameService.start_game (word-game-api/app/services/game.py:49-103) holds self._lock and awaits connections.broadcast_json (line 94)."
+    - "ConnectionManager.broadcast_json (ws.py:36-40) awaits send_json on EVERY socket sequentially; a stale/half-open WebSocket blocks past the 10s axios deadline, so the HTTP response never returns in time."
+    - "Secondary blocking risk: category_service.get_config() -> CategoryConfigStore.snapshot() performs a synchronous Cosmos get_item on the request critical path (store.py:252-263)."
+  bug2_presence_flapping:
+    - "ConnectionManager.active_users() returns only currently-connected sockets (ws.py:32-34) — no inactivity grace period."
+    - "On WebSocketDisconnect the server immediately removes the user and broadcasts user_left (main.py:339-347)."
+    - "Frontend removes the user on user_left (Dashboard.tsx:63-70). Any reload or exponential-backoff reconnect (WebSocketContext.tsx) drops the user from everyone's list instantly."
+
+acceptance:
+  - scenario: "Start game returns quickly even with a stale WebSocket present"
+    given: "Two or more users are active and at least one WebSocket connection is stale/half-open"
+    when: "A user clicks Start Game (POST /api/game/start)"
+    then: "The endpoint responds 200 within 3 seconds (well under the 10s axios timeout) and the game starts; a slow/dead socket must not block the response"
+  - scenario: "Broadcasts cannot block request handlers"
+    given: "A connected WebSocket has become unresponsive"
+    when: "broadcast_json is invoked from any request path"
+    then: "Each per-socket send is bounded by a short timeout; failed/stale sockets are dropped from the connection set and do not delay the caller"
+  - scenario: "Category config read cannot stall game start"
+    given: "Cosmos is slow or unreachable"
+    when: "start_game reads category config"
+    then: "The read is bounded so the overall start_game response stays under the 3s budget (fallback to cached/default config on timeout)"
+  - scenario: "User stays active for 10 minutes after last activity"
+    given: "A user connected and then their WebSocket disconnects (reload, network blip, reconnect backoff)"
+    when: "Another user fetches GET /api/users/active or stays on the dashboard"
+    then: "The disconnected user remains in the active list until 600s elapse with no activity; no premature user_left is emitted on mere disconnect"
+  - scenario: "User appears to others immediately on login"
+    given: "User A is on the dashboard and User B logs in"
+    when: "User B's WebSocket connects"
+    then: "User A sees User B without requiring a reload (existing user_joined broadcast continues to work)"
+  - scenario: "Truly inactive user is removed after TTL"
+    given: "A user has no connection and no activity for more than 600s"
+    when: "The presence sweeper runs"
+    then: "The user is removed from active and a single user_left is broadcast exactly once"
+
+design:
+  presence_ttl_seconds: 600
+  approach:
+    - "Track last_seen[user_id] in ConnectionManager (or a Presence component); update on connect, on every received WS message, and on ws-ticket issuance."
+    - "active_users() returns the union of live connections and users whose last_seen is within PRESENCE_TTL_SECONDS."
+    - "Remove the immediate user_left broadcast on WebSocketDisconnect; keep last_seen so the user stays active during reconnect."
+    - "Add a background sweeper task (asyncio) that expires users past TTL and broadcasts user_left exactly once; cancel cleanly on app shutdown."
+    - "PRESENCE_TTL_SECONDS env var (default 600) added to core/config.py Settings."
+    - "broadcast_json: bound each send with asyncio.wait_for (~2s); on timeout/error drop that socket from _connections; never propagate the delay to the caller."
+
+red_team_review:
+  - "Multi-replica: presence is in-memory and per-replica. Consistent with decisions log (single-replica ACA for dev; no broadcast backplane). Document as known dev constraint; do not add Redis now."
+  - "Sweeper lifecycle: must be created on startup and cancelled on shutdown to avoid leaked tasks; guard against double user_left for the same expiry."
+  - "Concurrency: last_seen reads/writes and active_users computation must occur under the existing asyncio.Lock to avoid races with connect/disconnect."
+  - "broadcast_json hardening must remove dead sockets to prevent repeated blocking on subsequent broadcasts; ensure removal does not mutate a dict during iteration."
+  - "Do not change the /api/users/active or /api/game/start response shapes (no contract drift in .contracts/game-api.yml)."
+  - "Security: no new data exposure — active list already returns display names to authenticated callers only."
+
+nfr:
+  latency: "POST /api/game/start p95 < 3s (frontend axios budget 10s)"
+  security: "No new endpoints or data exposure; presence list remains authenticated-only"
+  availability: "Stale/dead WebSocket connections must not degrade REST endpoints"
+
+affected_repos:
+  - repo: "word-game-api"
+    scope: "Non-blocking broadcast_json + bounded category-config read in start_game; presence last_seen tracking with 600s TTL; background sweeper; PRESENCE_TTL_SECONDS config; remove immediate user_left on disconnect"
+  - repo: "word-game-web"
+    scope: "Dashboard periodically re-fetches GET /api/users/active (e.g., every 30s) so presence converges with the TTL model and missed broadcasts during reconnect churn self-heal"
+
+validation_commands:
+  word-game-api:
+    - "npm/pytest not used; run: python -m pytest -q (from word-game-api)"
+    - "ruff/lint per repo convention"
+  word-game-web:
+    - "npm --workspace not applicable; run repo lint+build+test as configured in word-game-web"
