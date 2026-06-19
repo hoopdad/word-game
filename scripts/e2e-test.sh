@@ -51,12 +51,25 @@ if [ -z "$TOKEN" ] && [ -n "${E2E_SP_CLIENT_ID:-}" ] && [ -n "${E2E_SP_CLIENT_SE
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=client_credentials&client_id=${E2E_SP_CLIENT_ID}&client_secret=${E2E_SP_CLIENT_SECRET}&scope=api://${API_CLIENT_ID}/.default" \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
-  if [ -n "$TOKEN" ]; then
+  if [ -n "$TOKEN" ] && echo "$TOKEN" | grep -q '^eyJ'; then
     echo "  ✅ Token from service principal (${#TOKEN} chars)"
+  else
+    TOKEN=""
   fi
 fi
 
-# Method 3: az CLI (for local dev with consent)
+# Method 3: Device code flow token cache (non-interactive — uses cached token only)
+# Run `./scripts/get-e2e-token.sh` manually first to populate the cache
+if [ -z "$TOKEN" ] && [ -f "$SCRIPT_DIR/../.azure/e2e-token-cache.json" ]; then
+  TOKEN=$(timeout 5 "$SCRIPT_DIR/get-e2e-token.sh" 2>/dev/null || echo "")
+  if [ -n "$TOKEN" ] && echo "$TOKEN" | grep -q '^eyJ'; then
+    echo "  ✅ Token from device code cache (${#TOKEN} chars)"
+  else
+    TOKEN=""
+  fi
+fi
+
+# Method 4: az CLI (if user has granted consent)
 if [ -z "$TOKEN" ]; then
   TOKEN=$(timeout 10 az account get-access-token --resource "api://${API_CLIENT_ID}" --query accessToken -o tsv 2>/dev/null || echo "")
   if [ -n "$TOKEN" ] && [ "${#TOKEN}" -gt 100 ] && echo "$TOKEN" | grep -q '^eyJ'; then
@@ -68,8 +81,8 @@ fi
 
 if [ -z "$TOKEN" ]; then
   echo "  ⚠️  No token available. Running unauthenticated validation mode."
-  echo "     Set E2E_TOKEN, or E2E_SP_CLIENT_ID+E2E_SP_CLIENT_SECRET, or run 'az login' with API consent."
-  echo "     Unauthenticated mode verifies API returns 401 (not 500) on protected endpoints."
+  echo "     To enable full user simulation, run: ./scripts/get-e2e-token.sh"
+  echo "     (one-time device code auth, then tokens are cached automatically)"
   AUTH_HEADER=""
   AUTHENTICATED=false
 else

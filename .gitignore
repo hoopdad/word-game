@@ -5,3 +5,6 @@ __pycache__/
 .env
 .azure/tf-outputs.json
 .azure/config.json
+
+# E2E test token cache (contains secrets)
+.azure/e2e-token-cache.json

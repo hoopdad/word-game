@@ -396,7 +396,7 @@ fi
 API_IDENTIFIER_URI="api://${API_APP_ID}"
 
 API_PATCH_BODY="$(cat <<EOF
-{"identifierUris":["${API_IDENTIFIER_URI}"],"signInAudience":"AzureADMyOrg","api":{"requestedAccessTokenVersion":2,"oauth2PermissionScopes":[{"id":"${API_SCOPE_ID}","adminConsentDisplayName":"Play Word Game","adminConsentDescription":"Allows the app to call the Word Game API.","userConsentDisplayName":"Play Word Game","userConsentDescription":"Allows this app to call the Word Game API on your behalf.","value":"${API_SCOPE_VALUE}","type":"User","isEnabled":true}]}}
+{"identifierUris":["${API_IDENTIFIER_URI}"],"signInAudience":"AzureADMyOrg","api":{"knownClientApplications":["04b07795-8ddb-461a-bbee-02f9e1bf7b46"],"requestedAccessTokenVersion":2,"oauth2PermissionScopes":[{"id":"${API_SCOPE_ID}","adminConsentDisplayName":"Play Word Game","adminConsentDescription":"Allows the app to call the Word Game API.","userConsentDisplayName":"Play Word Game","userConsentDescription":"Allows this app to call the Word Game API on your behalf.","value":"${API_SCOPE_VALUE}","type":"User","isEnabled":true}]}}
 EOF
 )"
 graph_patch_application "$API_APP_OBJECT_ID" "$API_PATCH_BODY" "$API_APP_NAME"
