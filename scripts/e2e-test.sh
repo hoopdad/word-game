@@ -207,7 +207,16 @@ if [ "$AUTHENTICATED" = "true" ]; then
   api_get "/api/scores/all-time" 200 >/dev/null || true
   api_get "/api/scores/today" 200 >/dev/null || true
 else
-  skip "Scores endpoints" "No token"
+  for ep in "/api/scores/game-count" "/api/scores/all-time" "/api/scores/today"; do
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$ep" 2>/dev/null)
+    if [ "$CODE" = "401" ]; then
+      pass "GET $ep → 401 (healthy)"
+    elif [ "$CODE" = "500" ]; then
+      fail "GET $ep" "500 = backend error"
+    else
+      fail "GET $ep" "Expected 401, got $CODE"
+    fi
+  done
 fi
 echo
 
@@ -218,7 +227,14 @@ echo "── 5. Game Flow ──"
 if [ "$AUTHENTICATED" = "true" ]; then
   api_get "/api/game/status" 200 >/dev/null || true
 else
-  skip "Game endpoints" "No token"
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/game/status" 2>/dev/null)
+  if [ "$CODE" = "401" ]; then
+    pass "GET /api/game/status → 401 (healthy)"
+  elif [ "$CODE" = "500" ]; then
+    fail "GET /api/game/status" "500 = backend error"
+  else
+    fail "GET /api/game/status" "Expected 401, got $CODE"
+  fi
 fi
 echo
 
@@ -247,11 +263,17 @@ if [ "$AUTHENTICATED" = "true" ]; then
   if echo "$WS_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'ticket' in d" 2>/dev/null; then
     pass "POST /api/auth/ws-ticket → valid ticket"
   else
-    # 200 with ticket or 201 both acceptable
     skip "POST /api/auth/ws-ticket" "Response shape unexpected"
   fi
 else
-  skip "WebSocket ticket" "No token"
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d '{}' "$BASE/api/auth/ws-ticket" 2>/dev/null)
+  if [ "$CODE" = "401" ]; then
+    pass "POST /api/auth/ws-ticket → 401 (healthy)"
+  elif [ "$CODE" = "500" ]; then
+    fail "POST /api/auth/ws-ticket" "500 = backend error"
+  else
+    fail "POST /api/auth/ws-ticket" "Expected 401, got $CODE"
+  fi
 fi
 echo
 
