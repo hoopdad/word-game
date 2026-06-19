@@ -6,6 +6,11 @@ a Python/FastAPI REST API, a Python AI agent service, and Terraform infrastructu
 Deploys to Azure Container Apps with Cosmos DB for data, Entra External ID for
 authentication, and local azd deployment from word-game-harness.
 
+## Session Init Checklist
+- First action in any orchestrator session: call `tool_search_tool_regex` 
+  with pattern `child-agent|repo-index|contract` to discover MCP tool prefixes.
+- Never assume MCP tools are unavailable without a direct tool call attempt.
+
 ## Architecture
 
 This is a multi-repo project managed by the enterprise-copilot-fleet-controller. You are the orchestrator.

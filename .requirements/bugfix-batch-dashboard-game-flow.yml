@@ -1,0 +1,54 @@
+feature: "bugfix-batch-dashboard-game-flow"
+context: "Multiple live bugs reported: profile save 404, active users showing raw GUID, start game button visible with 1 user, game hangs on start"
+acceptance:
+  - scenario: "Profile update works for authenticated users"
+    given: "User is authenticated with valid Entra token"
+    when: "User calls PUT /api/users/profile with display_name"
+    then: "User record is created or updated (upsert) — never returns 404 for authenticated users"
+
+  - scenario: "Active users shows display names"
+    given: "Users connected via WebSocket"
+    when: "GET /api/users/active or WebSocket user_joined event"
+    then: "Display names shown (not raw sub claim GUIDs)"
+
+  - scenario: "User join/leave broadcast"
+    given: "User connects or disconnects via WebSocket"
+    when: "Connection established or closed"
+    then: "Server broadcasts user_joined/user_left with user_id and display_name to all connected users"
+
+  - scenario: "Start game requires 2+ users"
+    given: "Only 1 user in active users list"
+    when: "Dashboard is displayed"
+    then: "Start Game button is hidden; only shown when activeUsers >= 2"
+
+  - scenario: "Game start uses REST not WebSocket"
+    given: "User clicks Start Game"
+    when: "Button is clicked"
+    then: "Frontend calls POST /api/game/start (REST) not WebSocket start_game event"
+
+  - scenario: "WebSocket message dispatch handles flat payloads"
+    given: "Backend sends {type: 'event_name', key: value} (flat, no nested data field)"
+    when: "Frontend WebSocket receives message"
+    then: "Event listeners receive {key: value} spread payload (not undefined)"
+
+  - scenario: "GameScreen event names match backend"
+    given: "Backend sends game_started, countdown_tick, round_started events"
+    when: "GameScreen is active"
+    then: "Frontend listens for correct event names (not game_status_updated/role_assigned)"
+
+  - scenario: "WAF proxies /agent/* to agent service"
+    given: "Request to /agent/health or /agent/api/categories/generate"
+    when: "WAF receives the request"
+    then: "nginx proxies to ${AGENT_UPSTREAM} (not return 404)"
+
+nfr:
+  latency: "< 500ms for profile update"
+  security: "Auth token required for all mutating operations"
+
+affected_repos:
+  - repo: "word-game-web"
+    scope: "WebSocket dispatch, Dashboard start game logic, GameScreen event alignment"
+  - repo: "word-game-api"
+    scope: "Profile upsert, WebSocket user_joined/left broadcast, start_game WS handler"
+  - repo: "word-game-waf"
+    scope: "Agent route proxy instead of 404 stub"
