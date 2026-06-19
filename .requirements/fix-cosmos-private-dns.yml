@@ -1,0 +1,33 @@
+feature: "fix-cosmos-private-dns"
+context: |
+  Both /api/categories/config and /api/users/active return HTTP 500 in production.
+  Root cause: Cosmos DB has public_network_access_enabled=false with a private endpoint,
+  but no privatelink.documents.azure.com DNS zone is linked to the VNet.
+  Container Apps resolve Cosmos FQDN to public IP → blocked by firewall.
+
+acceptance:
+  - scenario: "Categories config loads successfully"
+    given: "User is authenticated and on Configure Categories page"
+    when: "Page loads and calls GET /api/categories/config"
+    then: "Response is 200 with {urls, generated_categories, source} shape"
+  - scenario: "Active users loads on dashboard"
+    given: "User is authenticated and on Dashboard"
+    when: "Page loads and calls GET /api/users/active"
+    then: "Response is 200 with {users: [...]} shape"
+  - scenario: "Cosmos DNS resolves to private IP"
+    given: "privatelink.documents.azure.com zone is linked to VNet"
+    when: "API container resolves wordgame-dev-cosmos.documents.azure.com"
+    then: "Resolution returns private endpoint IP (10.x.x.x), not public IP"
+  - scenario: "Infrastructure change is non-destructive"
+    given: "DNS zone and VNet link are added to Terraform"
+    when: "terraform plan runs"
+    then: "Only 3 resources added (zone, link, zone group), 0 destroyed"
+
+nfr:
+  latency: "< 500ms for categories/config and users/active"
+  security: "All Cosmos traffic remains on private network"
+  availability: "Zero downtime — additive infra change only"
+
+affected_repos:
+  - repo: "word-game-infra"
+    scope: "Add privatelink.documents.azure.com DNS zone + VNet link + update Cosmos PE config"

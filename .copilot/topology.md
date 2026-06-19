@@ -59,6 +59,7 @@ WAF FQDN: `word-game-waf.salmonpond-f3d80363.centralus.azurecontainerapps.io`
 | Terraform outputs | .azure/tf-outputs.json |
 | Deploy all services | scripts/azd-deploy.sh |
 | Post-deploy verify | scripts/verify-deploy.sh |
+| E2E authenticated tests | scripts/e2e-test.sh |
 | MSAL config check | scripts/check-msal-config.sh |
 | Guardrails | .copilot/guardrails/pattern.yml, nfr.yml |
 | API contract | .contracts/game-api.yml |

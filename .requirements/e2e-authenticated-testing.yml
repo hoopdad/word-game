@@ -1,0 +1,31 @@
+feature: "e2e-authenticated-testing"
+context: |
+  No authenticated end-to-end testing existed. Both 500 bugs went undetected because
+  verify-deploy.sh only checks unauthenticated route reachability (401 is "passing").
+  Need full-flow validation that exercises Cosmos-backed endpoints with real tokens.
+
+acceptance:
+  - scenario: "E2E test script acquires token and tests all endpoints"
+    given: "User is logged in via az CLI with API scope consent"
+    when: "scripts/e2e-test.sh runs"
+    then: "All authenticated endpoints return expected status codes and response shapes"
+  - scenario: "E2E test reports failures clearly"
+    given: "An endpoint returns 500"
+    when: "scripts/e2e-test.sh runs"
+    then: "Script exits with code 1 and reports which endpoints failed"
+  - scenario: "Testing skill available for agents"
+    given: "E2E test skill is defined in .github/skills/e2e-test/"
+    when: "Agent needs to validate deployment"
+    then: "Skill provides guidance on running authenticated tests"
+  - scenario: "Testing agent can be dispatched"
+    given: "word-game-e2e-tester.agent.md exists in .github/agents/"
+    when: "Orchestrator needs validation after deployment"
+    then: "E2E tester agent runs tests and reports structured results"
+
+nfr:
+  reliability: "Tests must fail fast (< 30s timeout per endpoint)"
+  security: "Token acquired via az CLI — no secrets stored in scripts"
+
+affected_repos:
+  - repo: "word-game-harness"
+    scope: "scripts/e2e-test.sh, .github/skills/e2e-test/, .github/agents/word-game-e2e-tester.agent.md"
