@@ -198,12 +198,12 @@ if [ "$AUTHENTICATED" = "true" ]; then
   # ────────────────────────────────────────────
   echo "── Flow 1: User Registration & Dashboard ──"
 
-  # User registers their display name (201=new, 409=already exists)
+  # User registers their display name (201=new, 200=idempotent, 409=name taken)
   REG_CODE=$(fetch_code POST "/api/users/register" '{"display_name":"E2E TestUser"}')
-  if [ "$REG_CODE" = "201" ] || [ "$REG_CODE" = "409" ]; then
-    pass "Register user → ${REG_CODE} (${REG_CODE/201/new}${REG_CODE/409/exists})"
+  if [ "$REG_CODE" = "201" ] || [ "$REG_CODE" = "200" ] || [ "$REG_CODE" = "409" ]; then
+    pass "Register user → ${REG_CODE}"
   else
-    fail "POST /api/users/register" "Expected 201|409, got ${REG_CODE}"
+    fail "POST /api/users/register" "Expected 200|201|409, got ${REG_CODE}"
   fi
 
   # User lands on dashboard, sees active users
