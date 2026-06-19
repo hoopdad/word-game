@@ -92,6 +92,7 @@ fi
 echo
 
 # --- Helper functions ---
+# pass/fail go to stderr (display), body goes to stdout (capture)
 api_get() {
   local path="$1" expected_code="${2:-200}"
   local curl_args=(-s -w "\n%{http_code}")
@@ -155,137 +156,209 @@ api_put() {
   fi
 }
 
-# ──────────────────────────────────────────────
-# 1. Infrastructure Health (no auth needed)
-# ──────────────────────────────────────────────
-echo "── 1. Infrastructure Health ──"
-api_get "/health" 200 >/dev/null
-api_get "/version" 200 >/dev/null
-echo
+# Fetch body only (no pass/fail side effects)
+fetch() {
+  local method="$1" path="$2" data="${3:-}"
+  local curl_args=(-s -w "\n%{http_code}")
+  [ -n "${AUTH_HEADER:-}" ] && curl_args+=(-H "$AUTH_HEADER")
+  if [ "$method" != "GET" ]; then
+    curl_args+=(-X "$method" -H "Content-Type: application/json")
+    [ -n "$data" ] && curl_args+=(-d "$data")
+  fi
 
-# ──────────────────────────────────────────────
-# 2. Authenticated API — User Management
-# ──────────────────────────────────────────────
-echo "── 2. User Management ──"
-if [ "$AUTHENTICATED" = "true" ]; then
-  ACTIVE_RESULT=$(api_get "/api/users/active" 200 2>/dev/null) || true
-  if echo "$ACTIVE_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'users' in d" 2>/dev/null; then
-    pass "GET /api/users/active → valid response shape"
-  else
-    fail "GET /api/users/active" "Response missing 'users' field"
-  fi
-else
-  # Unauthenticated mode: verify 401 (not 500 which indicates backend failure)
-  UNAUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/users/active" 2>/dev/null)
-  if [ "$UNAUTH_CODE" = "401" ]; then
-    pass "GET /api/users/active → 401 (API healthy, auth required)"
-  elif [ "$UNAUTH_CODE" = "500" ]; then
-    fail "GET /api/users/active" "500 = backend error (Cosmos unreachable?)"
-  else
-    fail "GET /api/users/active" "Expected 401, got $UNAUTH_CODE"
-  fi
-fi
-echo
+  local response
+  response=$(curl "${curl_args[@]}" "$BASE$path" 2>/dev/null || echo -e "\n000")
+  local http_code body
+  http_code=$(echo "$response" | tail -1)
+  body=$(echo "$response" | sed '$d')
+  # Return: body on stdout, code on fd3
+  echo "$body"
+  return 0
+}
 
-# ──────────────────────────────────────────────
-# 3. Authenticated API — Categories (BUG #1 target)
-# ──────────────────────────────────────────────
-echo "── 3. Category Configuration ──"
-if [ "$AUTHENTICATED" = "true" ]; then
-  CAT_RESULT=$(api_get "/api/categories/config" 200 2>/dev/null) || true
-  if echo "$CAT_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'urls' in d or 'generated_categories' in d or 'source' in d" 2>/dev/null; then
-    pass "GET /api/categories/config → valid response shape"
-  else
-    fail "GET /api/categories/config" "Response missing expected fields (urls/generated_categories/source)"
+fetch_code() {
+  local method="$1" path="$2" data="${3:-}"
+  local curl_args=(-s -o /dev/null -w "%{http_code}")
+  [ -n "${AUTH_HEADER:-}" ] && curl_args+=(-H "$AUTH_HEADER")
+  if [ "$method" != "GET" ]; then
+    curl_args+=(-X "$method" -H "Content-Type: application/json")
+    [ -n "$data" ] && curl_args+=(-d "$data")
   fi
-else
-  # Unauthenticated mode: verify 401 (not 500)
-  UNAUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/categories/config" 2>/dev/null)
-  if [ "$UNAUTH_CODE" = "401" ]; then
-    pass "GET /api/categories/config → 401 (API healthy, auth required)"
-  elif [ "$UNAUTH_CODE" = "500" ]; then
-    fail "GET /api/categories/config" "500 = backend error (Cosmos unreachable?)"
-  else
-    fail "GET /api/categories/config" "Expected 401, got $UNAUTH_CODE"
-  fi
-fi
-echo
+  curl "${curl_args[@]}" "$BASE$path" 2>/dev/null || echo "000"
+}
 
-# ──────────────────────────────────────────────
-# 4. Authenticated API — Scores
-# ──────────────────────────────────────────────
-echo "── 4. Scores ──"
+# ══════════════════════════════════════════════════════════════
+# USER BEHAVIOR SIMULATION
+# Chains curl calls to replicate what a real user does in the UI
+# ══════════════════════════════════════════════════════════════
+
 if [ "$AUTHENTICATED" = "true" ]; then
-  api_get "/api/scores/game-count" 200 >/dev/null || true
-  api_get "/api/scores/all-time" 200 >/dev/null || true
-  api_get "/api/scores/today" 200 >/dev/null || true
+  # ────────────────────────────────────────────
+  # Flow 1: New user arrives → registers → sees dashboard
+  # ────────────────────────────────────────────
+  echo "── Flow 1: User Registration & Dashboard ──"
+
+  # User registers their display name (201=new, 409=already exists)
+  REG_CODE=$(fetch_code POST "/api/users/register" '{"display_name":"E2E TestUser"}')
+  if [ "$REG_CODE" = "201" ] || [ "$REG_CODE" = "409" ]; then
+    pass "Register user → ${REG_CODE} (${REG_CODE/201/new}${REG_CODE/409/exists})"
+  else
+    fail "POST /api/users/register" "Expected 201|409, got ${REG_CODE}"
+  fi
+
+  # User lands on dashboard, sees active users
+  ACTIVE_BODY=$(fetch GET "/api/users/active")
+  if echo "$ACTIVE_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); assert isinstance(d.get('users'), list)" 2>/dev/null; then
+    pass "Dashboard shows active users list"
+  else
+    fail "Dashboard /api/users/active" "Missing 'users' array: $(echo "$ACTIVE_BODY" | head -c 80)"
+  fi
+
+  # User checks if a name is available
+  NAME_CODE=$(fetch_code GET "/api/users/check-name/SomeRandomName")
+  if [ "$NAME_CODE" = "200" ]; then
+    pass "Check name availability → 200"
+  else
+    fail "GET /api/users/check-name" "Expected 200, got $NAME_CODE"
+  fi
+  echo
+
+  # ────────────────────────────────────────────
+  # Flow 2: User configures categories for the game
+  # ────────────────────────────────────────────
+  echo "── Flow 2: Configure Categories ──"
+
+  # User loads current config
+  CAT_BODY=$(fetch GET "/api/categories/config")
+  if echo "$CAT_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'source' in d" 2>/dev/null; then
+    pass "Load current category config"
+  else
+    fail "GET /api/categories/config" "Missing 'source': $(echo "$CAT_BODY" | head -c 80)"
+  fi
+
+  # User submits new category config (parse current, modify, submit)
+  SUBMIT_CODE=$(fetch_code PUT "/api/categories/config" '{"urls":["https://example.com/words"],"generated_categories":["Animals","Geography"]}')
+  if [ "$SUBMIT_CODE" = "200" ]; then
+    pass "Submit category config change → 200"
+  else
+    fail "PUT /api/categories/config" "Expected 200, got $SUBMIT_CODE"
+  fi
+
+  # User reloads page — verifies config persisted
+  CAT_RELOAD=$(fetch GET "/api/categories/config")
+  if echo "$CAT_RELOAD" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'https://example.com/words' in d.get('urls',[])" 2>/dev/null; then
+    pass "Category config persisted after reload"
+  else
+    fail "Config persistence" "URL not in reloaded config: $(echo "$CAT_RELOAD" | head -c 80)"
+  fi
+  echo
+
+  # ────────────────────────────────────────────
+  # Flow 3: User checks scores and enters game lobby
+  # ────────────────────────────────────────────
+  echo "── Flow 3: Scores & Game Lobby ──"
+
+  # User views leaderboard
+  SCORES_BODY=$(fetch GET "/api/scores/all-time")
+  if echo "$SCORES_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'scores' in d" 2>/dev/null; then
+    pass "View all-time leaderboard"
+  else
+    fail "GET /api/scores/all-time" "Missing 'scores': $(echo "$SCORES_BODY" | head -c 80)"
+  fi
+
+  SCORES_CODE=$(fetch_code GET "/api/scores/today")
+  [ "$SCORES_CODE" = "200" ] && pass "View today's scores → 200" || fail "GET /api/scores/today" "Got $SCORES_CODE"
+
+  COUNT_CODE=$(fetch_code GET "/api/scores/game-count")
+  [ "$COUNT_CODE" = "200" ] && pass "Get game count → 200" || fail "GET /api/scores/game-count" "Got $COUNT_CODE"
+
+  # User checks game lobby status
+  GAME_BODY=$(fetch GET "/api/game/status")
+  if echo "$GAME_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'status' in d" 2>/dev/null; then
+    pass "Game lobby status → $(echo "$GAME_BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])" 2>/dev/null)"
+  else
+    fail "GET /api/game/status" "Missing 'status': $(echo "$GAME_BODY" | head -c 80)"
+  fi
+  echo
+
+  # ────────────────────────────────────────────
+  # Flow 4: User requests WebSocket ticket for real-time play
+  # ────────────────────────────────────────────
+  echo "── Flow 4: WebSocket Connection ──"
+
+  WS_BODY=$(fetch POST "/api/auth/ws-ticket" '{}')
+  if echo "$WS_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'ticket' in d and len(d['ticket']) > 10" 2>/dev/null; then
+    pass "Obtain WebSocket ticket for real-time play"
+  else
+    fail "POST /api/auth/ws-ticket" "Invalid ticket: $(echo "$WS_BODY" | head -c 80)"
+  fi
+  echo
+
+  # ────────────────────────────────────────────
+  # Flow 5: User updates profile
+  # ────────────────────────────────────────────
+  echo "── Flow 5: Profile Update ──"
+
+  PROFILE_CODE=$(fetch_code PUT "/api/users/profile" '{"display_name":"E2E Updated"}')
+  if [ "$PROFILE_CODE" = "200" ]; then
+    pass "Update display name → 200"
+  else
+    fail "PUT /api/users/profile → $PROFILE_CODE" "(known bug: Cosmos enable_cross_partition_query)"
+  fi
+  echo
+
+  # ────────────────────────────────────────────
+  # Flow 6: CORS (browser enforces this on every API call)
+  # ────────────────────────────────────────────
+  echo "── Flow 6: CORS Preflight ──"
+
+  PREFLIGHT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS \
+    -H "Origin: $BASE" \
+    -H "Access-Control-Request-Method: POST" \
+    -H "Access-Control-Request-Headers: Authorization, Content-Type" \
+    "$BASE/api/users/register" 2>/dev/null || echo "000")
+  if [ "$PREFLIGHT_CODE" = "204" ] || [ "$PREFLIGHT_CODE" = "200" ]; then
+    pass "CORS preflight → ${PREFLIGHT_CODE}"
+  else
+    fail "CORS preflight" "Expected 204/200, got ${PREFLIGHT_CODE}"
+  fi
+
 else
-  for ep in "/api/scores/game-count" "/api/scores/all-time" "/api/scores/today"; do
+  # ════════════════════════════════════════════
+  # UNAUTHENTICATED MODE: verify API is alive (401, not 500)
+  # ════════════════════════════════════════════
+  echo "── Unauthenticated Smoke Test (401 = healthy) ──"
+  echo "  (Run ./scripts/get-e2e-token.sh once to enable full user simulation)"
+  echo
+
+  for ep in "/api/users/active" "/api/categories/config" "/api/scores/all-time" \
+            "/api/scores/today" "/api/scores/game-count" "/api/game/status"; do
     CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$ep" 2>/dev/null)
     if [ "$CODE" = "401" ]; then
       pass "GET $ep → 401 (healthy)"
     elif [ "$CODE" = "500" ]; then
-      fail "GET $ep" "500 = backend error"
+      fail "GET $ep" "500 = backend crash"
     else
       fail "GET $ep" "Expected 401, got $CODE"
     fi
   done
-fi
-echo
 
-# ──────────────────────────────────────────────
-# 5. Authenticated API — Game Status
-# ──────────────────────────────────────────────
-echo "── 5. Game Flow ──"
-if [ "$AUTHENTICATED" = "true" ]; then
-  api_get "/api/game/status" 200 >/dev/null || true
-else
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/game/status" 2>/dev/null)
-  if [ "$CODE" = "401" ]; then
-    pass "GET /api/game/status → 401 (healthy)"
-  elif [ "$CODE" = "500" ]; then
-    fail "GET /api/game/status" "500 = backend error"
-  else
-    fail "GET /api/game/status" "Expected 401, got $CODE"
-  fi
-fi
-echo
-
-# ──────────────────────────────────────────────
-# 6. CORS Preflight
-# ──────────────────────────────────────────────
-echo "── 6. CORS ──"
-PREFLIGHT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS \
-  -H "Origin: $BASE" \
-  -H "Access-Control-Request-Method: POST" \
-  -H "Access-Control-Request-Headers: Authorization, Content-Type" \
-  "$BASE/api/users/register" 2>/dev/null || echo "000")
-if [ "$PREFLIGHT_CODE" = "204" ] || [ "$PREFLIGHT_CODE" = "200" ]; then
-  pass "CORS preflight → ${PREFLIGHT_CODE}"
-else
-  fail "CORS preflight" "Expected 204/200, got ${PREFLIGHT_CODE}"
-fi
-echo
-
-# ──────────────────────────────────────────────
-# 7. WebSocket Ticket (if auth available)
-# ──────────────────────────────────────────────
-echo "── 7. WebSocket ──"
-if [ "$AUTHENTICATED" = "true" ]; then
-  WS_RESULT=$(api_post "/api/auth/ws-ticket" '{}' 200 2>/dev/null) || true
-  if echo "$WS_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'ticket' in d" 2>/dev/null; then
-    pass "POST /api/auth/ws-ticket → valid ticket"
-  else
-    skip "POST /api/auth/ws-ticket" "Response shape unexpected"
-  fi
-else
   CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d '{}' "$BASE/api/auth/ws-ticket" 2>/dev/null)
   if [ "$CODE" = "401" ]; then
     pass "POST /api/auth/ws-ticket → 401 (healthy)"
-  elif [ "$CODE" = "500" ]; then
-    fail "POST /api/auth/ws-ticket" "500 = backend error"
   else
     fail "POST /api/auth/ws-ticket" "Expected 401, got $CODE"
+  fi
+
+  PREFLIGHT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS \
+    -H "Origin: $BASE" \
+    -H "Access-Control-Request-Method: POST" \
+    -H "Access-Control-Request-Headers: Authorization, Content-Type" \
+    "$BASE/api/users/register" 2>/dev/null || echo "000")
+  if [ "$PREFLIGHT_CODE" = "204" ] || [ "$PREFLIGHT_CODE" = "200" ]; then
+    pass "CORS preflight → ${PREFLIGHT_CODE}"
+  else
+    fail "CORS preflight" "Expected 204/200, got ${PREFLIGHT_CODE}"
   fi
 fi
 echo
