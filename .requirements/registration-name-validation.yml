@@ -1,0 +1,46 @@
+feature: "registration-name-validation-vs-conflict"
+context: >
+  Users registering a new display name repeatedly see "that user name is taken" for
+  names that are NOT taken. Root cause confirmed live: word-game-api register_user and
+  update_profile catch every ValueError and return HTTP 409. ValueError is raised both
+  for invalid display-name FORMAT (normalize_display_name, regex ^[A-Za-z0-9 ]{2,20}$)
+  and for a genuine name CONFLICT. The web client maps any 409 to "That name is taken",
+  so a free but mis-formatted name (e.g. "Mike-O", "Jose_99", "a.b", accented chars)
+  shows as taken. Live repro: POST /api/users/register {"display_name":"Mike-O"} -> 409
+  "display name must be 2-20 characters using letters, numbers, and spaces"; "Ann" -> 200.
+
+acceptance:
+  - scenario: "Invalid-format name returns a validation error, not a conflict"
+    given: "an authenticated user with no naming conflict"
+    when: "they POST /api/users/register or PUT /api/users/profile with a name containing characters outside [A-Za-z0-9 ] or wrong length"
+    then: "the API responds 422 with detail describing the allowed format (NOT 409)"
+  - scenario: "Genuinely taken name still conflicts"
+    given: "a display name already owned by a different user id"
+    when: "another user registers/updates to that exact (normalized) name"
+    then: "the API responds 409 with a 'name already taken' detail"
+  - scenario: "Same user re-registering their own name succeeds"
+    given: "an authenticated user who already owns a name"
+    when: "they register/update to the same or a new free, valid name"
+    then: "the API responds 200 and persists the record"
+  - scenario: "Availability check reflects the server response body"
+    given: "the NameEntry or Profile page checks a name"
+    when: "GET /api/users/check-name/{name} returns {available: false}"
+    then: "the UI shows the name as unavailable (checkNameAvailability returns the available field, not just HTTP 200)"
+  - scenario: "Client-side format guidance on the registration page"
+    given: "a user typing a display name on NameEntry"
+    when: "the name contains disallowed characters or wrong length"
+    then: "the UI shows a format hint and disables submit, matching the backend regex ^[A-Za-z0-9 ]{2,20}$ (parity with Profile page)"
+  - scenario: "Accurate error messaging on submit"
+    given: "a register/profile submit that fails"
+    when: "the API returns 422 (format) or 409 (conflict)"
+    then: "the UI shows the server-provided detail for 422 (format requirement) and 'That name is taken' only for 409"
+
+nfr:
+  security: "Do not leak other users' identities; check-name availability behavior unchanged. Server remains source of truth for both format and uniqueness (client validation is advisory only)."
+  compatibility: "DisplayNameTakenError must subclass ValueError so existing except ValueError call sites keep working."
+
+affected_repos:
+  - repo: "word-game-api"
+    scope: "Separate validation (422) from conflict (409) in register_user/update_profile; add DisplayNameTakenError raised by UserStore._upsert; update tests."
+  - repo: "word-game-web"
+    scope: "Fix checkNameAvailability to read response.data.available; add NameEntry format validation+hint; surface server detail on 422 and 'That name is taken' on 409 in NameEntry and Profile."

@@ -9,10 +9,11 @@ endpoints:
     path: "/api/users/register"
     description: "Register a new display name for the authenticated user"
     request:
-      display_name: { type: "string", required: true, min_length: 2, max_length: 20 }
+      display_name: { type: "string", required: true, min_length: 2, max_length: 20, pattern: "^[A-Za-z0-9 ]{2,20}$" }
     response:
-      201: { id: "string", display_name: "string" }
-      409: { error: "string", detail: "Name already taken" }
+      200: { id: "string", display_name: "string" }
+      422: { detail: "Validation error: name must be 2-20 chars using letters, numbers, and spaces" }
+      409: { detail: "display name already exists" }
       401: { error: "Unauthorized" }
 
   - method: "GET"
@@ -31,10 +32,11 @@ endpoints:
     path: "/api/users/profile"
     description: "Update the authenticated user's display name"
     request:
-      display_name: { type: "string", required: true, min_length: 2, max_length: 20 }
+      display_name: { type: "string", required: true, min_length: 2, max_length: 20, pattern: "^[A-Za-z0-9 ]{2,20}$" }
     response:
       200: { id: "string", display_name: "string" }
-      409: { error: "string", detail: "Name already taken" }
+      422: { detail: "Validation error: name must be 2-20 chars using letters, numbers, and spaces" }
+      409: { detail: "display name already exists" }
       401: { error: "Unauthorized" }
 
   # Game Management
