@@ -211,10 +211,15 @@ WEB_APP_NAME="word-game-web"
 
 if az containerapp show --name "$WEB_APP_NAME" --resource-group "$RG" --query name -o tsv --only-show-errors >/dev/null 2>&1; then
   info "Updating ${WEB_APP_NAME}"
+  # min-replicas=1: web is the WAF-fronted public SPA; scale-to-zero causes
+  # cold-start activation failures that leave the new revision unhealthy while
+  # the old revision keeps serving a stale bundle.
   az containerapp update \
     --name "$WEB_APP_NAME" \
     --resource-group "$RG" \
     --image "$WEB_IMAGE_REF" \
+    --min-replicas 1 \
+    --max-replicas 3 \
     --set-env-vars "AZURE_CLIENT_ID=${MI_CLIENT_ID}" \
     --only-show-errors >/dev/null
 else
@@ -226,7 +231,7 @@ else
     --image "$WEB_IMAGE_REF" \
     --target-port 8080 \
     --ingress internal \
-    --min-replicas 0 \
+    --min-replicas 1 \
     --max-replicas 3 \
     --user-assigned "$MI_RESOURCE_ID" \
     --registry-server "$ACR_LOGIN_SERVER" \
@@ -238,7 +243,22 @@ else
 fi
 
 ensure_containerapp_ingress "$WEB_APP_NAME" "internal" 8080
-ok "web deployed"
+
+# Verify the new revision actually activates; a failed cold-start would otherwise
+# leave an old revision serving a stale bundle while the deploy reports success.
+WEB_LATEST_REV="$(az containerapp show --name "$WEB_APP_NAME" --resource-group "$RG" --query properties.latestRevisionName -o tsv --only-show-errors)"
+WEB_WAIT=0
+WEB_STATE=""
+while [ "$WEB_WAIT" -lt 150 ]; do
+  WEB_STATE="$(az containerapp revision show --name "$WEB_APP_NAME" --resource-group "$RG" --revision "$WEB_LATEST_REV" --query properties.runningState -o tsv --only-show-errors 2>/dev/null || echo Unknown)"
+  case "$WEB_STATE" in
+    Running) break ;;
+    Failed|ActivationFailed) die "web revision $WEB_LATEST_REV failed to activate (state=$WEB_STATE)" ;;
+    *) sleep 10; WEB_WAIT=$((WEB_WAIT + 10)) ;;
+  esac
+done
+[ "$WEB_STATE" = "Running" ] || die "web revision $WEB_LATEST_REV did not reach Running (state=$WEB_STATE)"
+ok "web deployed (revision $WEB_LATEST_REV Running)"
 fi
 
 if should_deploy waf; then
