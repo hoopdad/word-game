@@ -40,9 +40,21 @@ endpoints:
   # Game Management
   - method: "GET"
     path: "/api/game/status"
-    description: "Get current game status (none, in-progress, completed)"
+    description: "Get current game status; includes the requesting user's role for reload hydration"
     response:
-      200: { status: "string", game_id: "string|null" }
+      200:
+        status: "idle | gathering_categories | countdown | category_overview | round_active | round_ended | game_ended"
+        game_id: "string|null"
+        players: ["string"]
+        current_guesser: "string|null"
+        current_guesser_name: "string|null"
+        current_category: "string|null"
+        countdown_remaining: "integer"
+        round_remaining: "integer"
+        round_index: "integer"
+        scores: { "user_id": "integer" }
+        your_user_id: "string"
+        your_role: "guesser | cluegiver | null"
 
   - method: "POST"
     path: "/api/game/start"

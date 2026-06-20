@@ -48,59 +48,70 @@ server_events:
       user_id: "string"
       active_users: [{ id: "string", display_name: "string" }]
 
+  # NOTE: Server emits FLAT messages: { "type": "<event>", ...payload }.
+  # The web client dispatches on `type` and spreads the remaining fields as payload.
   - event: "game_started"
-    description: "A game has been started"
+    description: "A game has been started; all connected clients should navigate to the game screen"
     payload:
       game_id: "string"
-      players: [{ id: "string", display_name: "string" }]
       status: "gathering_categories"
 
-  - event: "categories_ready"
-    description: "Category agent has finished generating categories"
-    payload:
-      categories: [{ name: "string", words: ["string"] }]
-
-  - event: "round_started"
-    description: "A new round has begun"
+  - event: "round_starting"
+    description: "Countdown to a round has begun; drives the role + countdown screen"
     payload:
       round_number: "integer"
       guesser_id: "string"
       guesser_name: "string"
-      role: "guesser | clue_giver"
       category: "string"
-      countdown_seconds: 10
+      countdown_remaining: "integer"
+      status: "countdown"
 
   - event: "countdown_tick"
     description: "Countdown timer tick"
     payload:
-      seconds_remaining: "integer"
+      remaining: "integer"
 
-  - event: "round_active"
-    description: "Round timer started, gameplay begins"
+  - event: "round_started"
+    description: "Round is now active; gameplay begins"
     payload:
-      time_remaining_seconds: 120
+      game_id: "string"
+      round_number: "integer"
+      guesser_id: "string"
+      guesser_name: "string"
+      category: "string"
+      status: "round_active"
 
   - event: "word_shown"
-    description: "Word shown to clue-givers (not sent to guesser)"
+    description: "Current word; sent ONLY to clue-givers via send_to_user, never to the guesser"
     payload:
       word: "string"
+      guesser_id: "string"
 
   - event: "guess_submitted"
     description: "Guesser submitted a guess (shown to clue-givers for judging)"
     payload:
+      user_id: "string"
+      display_name: "string"
       guess: "string"
 
-  - event: "guess_correct"
-    description: "A guess was judged correct"
+  - event: "score_updated"
+    description: "A guess was judged correct; scores updated and the word revealed to all"
     payload:
+      scores: { "user_id": "integer" }
+      user_id: "string"
       word: "string"
-      points: 10
-      guesser_score: "integer"
 
   - event: "timer_tick"
     description: "Round timer update"
     payload:
-      time_remaining_seconds: "integer"
+      remaining: "integer"
+
+  - event: "category_overview"
+    description: "Sent between rounds with the upcoming round's categories"
+    payload:
+      categories: [{ name: "string" }]
+      guesser_id: "string"
+      guesser_name: "string"
 
   - event: "round_ended"
     description: "Round has ended"
@@ -108,14 +119,13 @@ server_events:
       round_number: "integer"
       guesser_name: "string"
       points_earned: "integer"
-      reason: "time_expired | all_words_guessed"
+      reason: "time_expired | all_words_guessed | guesser_disconnected"
 
   - event: "game_ended"
-    description: "Game is over"
+    description: "Game is over; clients render results then redirect to the dashboard"
     payload:
       winners: [{ id: "string", display_name: "string", total_points: "integer" }]
-      all_scores: [{ display_name: "string", total_points: "integer" }]
-      new_records: { all_time: "boolean", daily: "boolean" }
+      scores: [{ display_name: "string", total_points: "integer" }]
 
   - event: "error"
     description: "Error message"

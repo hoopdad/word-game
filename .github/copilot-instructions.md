@@ -44,6 +44,10 @@ Specialist and critic agents live inside each child repo under `.github/agents/`
 - Services only: `bash scripts/azd-deploy.sh`
 - Programmatic deploys: use the MCP tool `deploy-local`
 
+**Pre-deploy gate (MANDATORY):** before any deploy, every changed repo MUST be committed, pushed,
+and version-tagged. Run `bash scripts/predeploy-gate.sh` (it commits, pushes, and tags each repo in
+`.repo-index.yml`) and confirm a clean, pushed, tagged state before invoking `azd`. Never deploy
+uncommitted or unpushed code.
 
 ## Your Protocol
 
@@ -84,11 +88,17 @@ Specialist and critic agents live inside each child repo under `.github/agents/`
 - All repositories in .repo-index.yml
 13. **Critic Scope (requirements)**:
 - All active requirement and guardrail sources
-10. **Trigger local deployment** (after all critic-approved `work/done/` items are validated):
+14. **Pre-deploy gate** (after all critic-approved `work/done/` items are validated): ensure every
+    changed repo is committed, **pushed**, and **version-tagged** — run `bash scripts/predeploy-gate.sh`
+    (or `create_prs` + `auto_merge_prs`). Do NOT deploy until the gate reports all repos clean,
+    pushed, and tagged.
+15. **Trigger local deployment** (only after the pre-deploy gate passes):
     - Run `cd word-game-harness && azd up` for a full deployment
     - Run `azd provision` when only infrastructure must be applied
     - Run `bash scripts/azd-deploy.sh` when only services must be rolled out
     - Use the MCP tool `deploy-local` for programmatic deployment and verify the reported result
+    - After deploy, run `verify_deployment` and dispatch the `word-game-e2e-tester` agent to validate
+      authenticated flows through the WAF.
 
 ## File Formats
 
@@ -138,10 +148,10 @@ endpoints:
 | `inspect_container_app` / `inspect_cosmos` / `inspect_acr` | Deep Azure diagnostics when one service needs focused investigation |
 | `diagnose_container_app` / `get_container_logs` / `list_revisions` / `check_image_accessibility` / `compare_container_apps` | Container App troubleshooting: activation failures, crash loops, image pull errors, health probe failures. Use the `container-app-troubleshoot` skill for guided triage. |
 | `check_repo_index` / `sync_repo_index` / `check_repo_queues` | Verify/normalize child repo references and inspect `work/{todo,ready-for-review,done}` queue state without shell checks |
-| `deploy-local` | Trigger the local azd deployment flow programmatically from word-game-harness |
+| `deploy-local` / `quick_deploy` | Trigger the local azd deployment flow (full or single-service) programmatically from word-game-harness |
 | `verify_deployment` | After local azd deployment to verify health/version endpoints are reachable |
 | `security_scan` | Before final merge/deploy to consolidate security findings from available scanners |
-| `orchestrate_release` / `create_prs` / `wait_for_ci` / `auto_merge_prs` | Multi-repo release flow when coordinating commit→PR→review→merge handoff before local deployment |
+| `create_prs` / `auto_merge_prs` | Pre-deploy gate: commit, push, and version-tag every repo (or run `scripts/predeploy-gate.sh`) before local `azd` deployment — no GitHub Actions CI is involved |
 | `log_usage` | Record orchestration events with status + timing metadata for correlation |
 | `get_usage_quality_report` | Review usage quality, anomalies, and value signals from `.metrics/usage.jsonl` |
 

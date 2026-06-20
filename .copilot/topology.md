@@ -9,6 +9,7 @@ Agents should consult this FIRST before searching for files.
 - **Infra**: Terraform with local state (`.azure/tf-outputs.json` has all outputs)
 - **Images**: `az acr build` to private ACR (not docker push)
 - **Deploy script**: `scripts/azd-deploy.sh` (builds + deploys all services)
+- **Pre-deploy gate**: `scripts/predeploy-gate.sh` (commit + push + version-tag every repo BEFORE deploy)
 - **Verify**: `scripts/verify-deploy.sh` (post-deploy smoke test)
 - **MSAL check**: `scripts/check-msal-config.sh` (pre-deploy MSAL validation)
 

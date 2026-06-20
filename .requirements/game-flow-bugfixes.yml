@@ -1,0 +1,62 @@
+feature: "game-flow-bugfixes"
+context: >
+  Live multiplayer round flow has 5 defects reported after the latest deploy. Root cause is
+  divergence between the server's WebSocket event/payload shapes (word-game-api app/services/game.py,
+  app/main.py) and what the React client renders (word-game-web GameScreen/Dashboard), plus missing
+  reload/state-restore. Single-replica ACA broadcast model is in effect, so broadcasts reach all
+  connected clients (see .decisions/log.md 2026-06-17 broadcast backplane note).
+
+acceptance:
+  - scenario: "Second player auto-enters the game"
+    given: "Two players are on the Dashboard with an active WebSocket"
+    when: "Player 1 clicks Start Game (POST /api/game/start, server broadcasts game_started)"
+    then: "Both players navigate to /game; neither remains on the Dashboard"
+
+  - scenario: "Role is visible on the round screen"
+    given: "A round is active"
+    when: "A player views the Round in Progress screen"
+    then: "The screen clearly shows whether the player is the GUESSER or a CLUE-GIVER"
+
+  - scenario: "Clue-giver sees the word"
+    given: "A round is active and the player is a clue-giver"
+    when: "The round becomes active or advances to the next word"
+    then: "The clue-giver sees the current word (not '...'); the guesser never receives the pending word"
+
+  - scenario: "Category is shown on the round screen"
+    given: "A round is active or starting"
+    when: "Any player views the round/countdown screen"
+    then: "The round's category name is displayed"
+
+  - scenario: "Game end shows results, not a blank screen"
+    given: "The final round ends"
+    when: "The server emits game_ended"
+    then: "The GameScreen renders winners and final scores without crashing, then redirects to the Dashboard"
+
+  - scenario: "Reloading the game screen restores or redirects"
+    given: "A player reloads /game"
+    when: "GameScreen mounts and queries GET /api/game/status"
+    then: "If no active game (status idle) the player is redirected to /dashboard; if a game is active the player sees the correct role-specific screen for the current round (no infinite 'Gathering categories')"
+
+nfr:
+  latency: "POST /api/game/start returns < 10s (existing axios timeout); status hydration < 2s"
+  security: "Pending word is sent only to clue-givers (send_to_user), never broadcast to the guesser; all WS role/state authz remains server-side"
+  availability: "Single-replica in-memory broadcast model; no backplane dependency introduced"
+
+contracts:
+  - ".contracts/websocket-api.yml"
+  - ".contracts/game-api.yml"
+
+affected_repos:
+  - repo: "word-game-api"
+    scope: >
+      app/services/game.py + app/main.py + app/models.py: emit round_starting, enrich round_started
+      (round_number, guesser_name, category, status), send word_shown to clue-givers only, add word to
+      score_updated, send category_overview as categories list, emit proper round_ended and game_ended
+      (winners + scores with display names), add display_name to guess_submitted, and extend
+      /api/game/status (current_category, current_guesser_name, your_user_id, your_role).
+  - repo: "word-game-web"
+    scope: >
+      src/pages/Dashboard.tsx (game_started navigation + defensive celebration), src/pages/GameScreen.tsx
+      (role label, category, word_shown handling, round_starting/round_started, defensive game_ended +
+      redirect, status hydration on mount with idle->dashboard), src/services/apiClient.ts (getGameStatus),
+      src/App.tsx if route guard changes are needed.
