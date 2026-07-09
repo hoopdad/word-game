@@ -136,3 +136,68 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
     Healthy/Running + clean container logs; functional E2E deferred to owner's next VPN session.
 - SPRINTS: A = api + infra (correctness/security, dispatch in parallel). B = web (contract-align
   bugfixes + full UI overhaul). B depends on A's contract. Dispatch A, critic-approve, then B.
+
+## r2 RELEASE — DEPLOYED (2026-07-09) ✅ (management-plane verified)
+- Sprints A (api+infra) and B (web) all critic-PASS. Web done directly by orchestrator after the
+  child specialist stalled (0 on-disk writes); code-review critic gate returned STATUS: PASS.
+- Pre-deploy gate PASSED: api v0.1.1, web v0.1.1, infra v0.4.1, harness v0.1.3 committed+pushed+tagged
+  (waf v0.2.0, agent v0.1.0 unchanged). Image tag df5ca6b.
+- INFRA: targeted `terraform apply -target=name_reservations` ONLY (created the missing Cosmos
+  container, PK /id). Deliberately did NOT apply unrelated pre-existing drift the full plan showed
+  (foundry+cosmos local_auth false->true, CAE Consumption workload_profile removal, subnet
+  default_outbound_access flip) to avoid collateral damage / security regression with no data-plane
+  to verify. Confirmed post-apply: cosmos disableLocalAuth still true, publicNetworkAccess Disabled.
+  NSG deny-internet-inbound removal already reconciled (not in plan change set).
+- SERVICES: SKIP_PROVISION=1 azd-deploy api then web. entra.json rebuilt from live app IDs
+  (API db1f76a1…, SPA 87a2ac26…, tenant d52a6857) — reused existing regs, no dup. SPA redirect URIs
+  + API CORS finalized to WAF FQDN.
+- VERIFY (management-plane): api--0000002 + web--0000001 Active/Running, 1 replica, clean boot
+  (0 ERROR/CRITICAL/Traceback). API reaches Cosmos over private PE; cross-partition queries return
+  200 — validates the enable_cross_partition_query removal. NOTE: a startup warmup burst of
+  cross-partition queries logs Cosmos 400 substatus 1004 then auto-retries to 200 (normal async SDK
+  cross-partition execution: POST->400->GET pkranges->POST->200); settles to quiet (no hot loop).
+- DEFERRED (needs owner VPN / data plane): functional E2E — profile save (name_reservations write),
+  categories persist (websites), dashboard games_played, /api/health through WAF, and the new UI —
+  at https://word-game-waf.victoriousdesert-ca89600e.centralus.azurecontainerapps.io
+
+## DRIFT RESEARCH — terraform config vs. live (2026-07-09) — deep analysis, ALZ-governance root cause
+Context: the r2 targeted apply revealed 7 config-vs-live diffs unrelated to r2. The product owner
+asked for deep research into WHY the drift exists and which items are strategic. Investigation
+(git blame, live az reads, RG/sub/MG policy survey) yields: the drift is dominated by **Azure
+Landing Zone (ALZ) management-group governance**, NOT by accidental config rot. The subscription
+(add4d87f…) sits under an ALZ MG hierarchy (alz → corp/connectivity/decommissioned + hoopdad MGs).
+The **corp** MG assigns "Public network access should be disabled for PaaS services", "Configure
+Azure PaaS services to use private DNS zones", "Deny network interfaces having a public IP"; the
+**alz** MG assigns the "Microsoft Cloud Security Benchmark" + Defender initiatives. These enforce a
+hardened baseline that overrides the app's TF. PROOF of active enforcement: the r2 `terraform apply`
+reported Cosmos `local_authentication_enabled false→true`, yet live **stayed** `disableLocalAuth=true`
+— an audit-only setting would have flipped; a Modify/Deny control held it. No RG- or sub-scoped
+assignment explains it, confirming MG-scope origin.
+
+Classification (config → live; LIVE is the more-secure/governance-enforced state in every strategic case):
+
+| # | Drift (config → live)                                   | Root cause                                                              | Strategic? | Remediation (config edit — NO deletion)                                    |
+|---|---------------------------------------------------------|------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------|
+| 1 | Cosmos local_authentication_enabled: true → false       | ALZ/MCSB governance disables local (key) auth; app uses AAD/UAMI        | YES (sec)  | set `local_authentication_enabled = false` in cosmos.tf (was true since S1) |
+| 2 | Foundry local_auth_enabled: (default true) → false      | ALZ/MCSB governance disables Cognitive Services key auth; app uses Entra| YES (sec)  | add `local_auth_enabled = false` in foundry.tf                              |
+| 3 | Subnet default_outbound_access_enabled ×4: (true)→false | Azure platform default-outbound retirement; live already zero-trust     | YES (net)  | add `default_outbound_access_enabled = false` to all 4 subnets              |
+| 4 | CAE workload_profile [Consumption]: present → undeclared | azurerm reads the implicit Consumption profile on a Consumption-only env| NO (cosmetic) | declare `workload_profile{name="Consumption" workload_profile_type="Consumption"}` OR `lifecycle{ignore_changes=[workload_profile]}` |
+
+KEY CONCLUSIONS:
+- **No drift requires any resource deletion.** All 4 items reconcile by aligning TF config to the
+  (secure, governance-enforced) live state. Applying the fixes is a NO-OP on live infrastructure —
+  it only stops terraform from proposing to un-harden the resources.
+- Items 1–3 are STRATEGIC: codifying them prevents a future `azd provision`/`terraform apply` from
+  fighting ALZ governance (which would either be reverted by policy or, for local_auth, silently
+  drift back). Item 4 is a cosmetic provider-representation quirk (declare-or-ignore).
+- **The CAE does NOT need to be recreated.** The workload_profile diff is a read-only representation
+  artifact of a Consumption-only internal CAE; `terraform apply` cannot remove the implicit
+  Consumption profile and would no-op/err rather than recreate. Recreating the CAE would change its
+  defaultDomain + static IP (10.0.13.193) → break the WAF FQDN, hub DNS wildcard A record, and Entra
+  redirect URIs. Explicitly OUT OF SCOPE / not required.
+- Remediation dispatched as infra work item `work/todo/r2b-drift-remediation.md` (config-only;
+  acceptance = `terraform plan` shows 0 changes for these items, no security regression). Per
+  protocol the orchestrator does not edit child .tf directly.
+- OPEN (separate, tracked in plan.md Sprint 4b incident): the NSG `deny-internet-inbound` rule the
+  owner manually deleted for VPN reach is still in TF and will re-add on next apply — durable fix is
+  an explicit allow for the VPN client range at priority <100 (folded into the same work item).
