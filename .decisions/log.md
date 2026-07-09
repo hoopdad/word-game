@@ -97,3 +97,42 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
   the Failed CAE (ScheduledForDelete ~3min), then retry apply. User requires Central US.
 - STATUS: all 4 apps Succeeded/Running (min-replicas=1); infra pushed be00d95 + tagged v0.4.0.
   App/data-plane E2E deferred until VPN restored (user disabled VPN 2026-07-09).
+
+## Release r2 — Bugfix + UI overhaul (2026-07-10)
+- CONTEXT: product owner reported 4 runtime defects on the deployed private-WAF env + "extremely
+  plain" UI. Diagnosed management-plane only (VPN/data-plane off). See .requirements/r2-bugfix-ui.yml.
+- ROOT CAUSES (confirmed in source):
+  1. Landing "API not available": SPA calls GET /health; the WAF proxies only /api/* to the api, so
+     /health hits the WEB app. FIX: add unauth GET /api/health (api) + JWTMiddleware exemption; SPA
+     calls /api/health. Keep /health + /version for container probes.
+  2. "Failed to load dashboard": dashboard.py (5x) + users.py (2x) pass enable_cross_partition_query=
+     True to query_items() — invalid kwarg in azure.cosmos.aio -> 500. FIX: remove the kwarg (async
+     SDK is cross-partition by default).
+  3. Profile save 500: users.py writes to Cosmos container `name_reservations`, never provisioned.
+     FIX (infra): provision name_reservations (partition /id).
+  4. "Failed to load categories": categories.py uses container `config`; infra provisions
+     `category_config`. Persistence broken. FIX (api): use category_config. Web<->api field mismatch
+     (web {categories} vs api {websites}). FIX (web): align to api `websites` URL model.
+- DECISION (categories semantics): categories are GENERATED from a configurable list of source
+  website URLs (matches agent + SSRF validation + contract). Keep the URL model; align web to it;
+  keep the page named "Configure Categories". Revisit if owner wants free-text category names.
+- DECISION (NSG): remove `deny-internet-inbound` from word-game-infra/networking.tf (product-owner
+  request). It pre-empts the lower-priority allow-vnet-inbound (VirtualNetwork) that the VPN P2S
+  client range needs. SAFE: default DenyAllInBound (65500) still blocks the internet; only the WAF
+  app is reachable, and only over the private LB (VPN). Zero-trust preserved.
+- RED TEAM:
+  * /api/health exemption must be an EXACT path match (not a prefix) so it can't be used to bypass
+    auth on /api/health-anything; every other /api/* stays authenticated. (acceptance-tested)
+  * Removing enable_cross_partition_query must not change result semantics — async SDK already does
+    cross-partition; verify queries still return the same rows (unit tests with a Cosmos stub).
+  * name_reservations partition key must be /id (reservation doc id == the normalized name key;
+    delete uses partition_key=old_key). Mismatch would 500 on delete of the previous name.
+  * Categories field switch is a cross-repo contract change — api + web must land together; contract
+    web-api-game.yml updated (GET/PUT categories use `websites`; active_users uses `active_users`;
+    added /api/health).
+  * UI overhaul must NOT reintroduce XSS (all user names via JSX, no dangerouslySetInnerHTML) and
+    must keep MSAL popup (never redirect), version-next-to-name, and WAF-relative /api,/ws paths.
+  * No data-plane verification this session — post-deploy validation limited to revisions
+    Healthy/Running + clean container logs; functional E2E deferred to owner's next VPN session.
+- SPRINTS: A = api + infra (correctness/security, dispatch in parallel). B = web (contract-align
+  bugfixes + full UI overhaul). B depends on A's contract. Dispatch A, critic-approve, then B.

@@ -1,0 +1,81 @@
+feature: "r2-bugfix-ui"
+context: >
+  Post-MVP release. Product owner reported four runtime defects against the deployed
+  private-WAF environment plus an "extremely plain" UI. Diagnosed from az container logs +
+  source (management-plane only; VPN/data-plane unavailable this session):
+    1. Landing "API not available": SPA health check calls GET /health, which the WAF routes
+       to the WEB app (WAF proxies only /api/*, /agent/*, /ws/*, /). The API /health is never
+       reached. => add unauth GET /api/health to the API; SPA must call /api/health.
+    2. "Failed to load dashboard. Retrying…": GET /api/dashboard + GET /api/users/active raise
+       500 because query_items() is called with enable_cross_partition_query=True, an invalid
+       kwarg in the async Cosmos SDK (azure.cosmos.aio). => remove the kwarg everywhere.
+    3. Profile save "Unexpected error (500)": PUT /api/users/name writes to Cosmos container
+       `name_reservations`, which is NOT provisioned (infra only provisions users/games/scores/
+       category_config). create_item -> CosmosResourceNotFoundError -> 500. => provision the
+       container in infra (partition /id).
+    4. "Failed to load categories": categories router reads/writes Cosmos container `config`;
+       infra provisions `category_config`. Persistence silently fails and shapes are brittle.
+       Also web<->api field mismatch (web expects {categories}; api uses {websites}). => api uses
+       `category_config`; align web to the api `websites` (URL) model.
+  Plus: infra must remove the NSG `deny-internet-inbound` rule (product-owner request; it
+  pre-empts the VirtualNetwork allow that VPN clients need — default DenyAllInBound still enforces
+  zero-trust). Plus: a full UI overhaul (cohesive, modern, accessible, responsive design system).
+
+decisions:
+  - id: "categories-semantics"
+    decision: >
+      Keep the backend model: category configuration manages a list of SOURCE WEBSITE URLs the
+      agent scrapes to derive game categories (matches agent-analysis contract + SSRF validation +
+      existing api). Align the web Categories page to the api `websites` field, but keep the
+      user-facing name "Configure Categories" and explain the URLs are the sources categories are
+      generated from. Lower risk than reworking api+agent to free-text category names; revisit if
+      the product owner prefers name-based categories.
+  - id: "health-route"
+    decision: >
+      Add unauth GET /api/health to the api (reachable through the existing WAF /api/* proxy) and
+      point the SPA health check at /api/health. Keep GET /health + GET /version for container
+      probes (guardrail: GET /health unauthenticated per service).
+
+acceptance:
+  - scenario: "Landing page API status"
+    given: "an unauthenticated visitor loads the SPA through the WAF"
+    when: "the SPA health check runs"
+    then: "GET /api/health returns 200 {status:'ok'} without auth and the UI shows API healthy"
+
+  - scenario: "Dashboard loads"
+    given: "an authenticated user with a display name"
+    when: "the dashboard mounts (GET /api/dashboard + GET /api/users/active)"
+    then: "both return 200 (no 500); dashboard renders games_played, top scorers, active users"
+
+  - scenario: "Profile save"
+    given: "an authenticated user on the profile page"
+    when: "they submit a new valid display name (PUT /api/users/name)"
+    then: "returns 200 and persists; a name collision returns 409; malformed returns 422 {error,field}"
+
+  - scenario: "Categories load + save"
+    given: "an authenticated user on the Configure Categories page"
+    when: "the page loads (GET /api/categories/config) and they save (PUT /api/categories/config)"
+    then: "GET returns 200 {websites:[...]}; save returns 200 and persists to category_config"
+
+  - scenario: "VPN reachability of the private WAF"
+    given: "a fresh terraform apply of the infra"
+    when: "the NSG is reconciled"
+    then: "no deny-internet-inbound rule exists; VPN clients can reach the CAE; default deny still blocks the internet"
+
+  - scenario: "UI overhaul"
+    given: "any screen (landing, name gate, dashboard, profile, categories, lobby, game)"
+    when: "rendered in a browser at desktop and mobile widths"
+    then: "a cohesive modern themed design (design tokens, spacing, typography, buttons, cards), responsive, accessible (labels/roles/contrast), version shown next to the app name; XSS-safe rendering preserved"
+
+nfr:
+  latency: "dashboard + categories GET < 500ms server-side"
+  security: "no secrets in source; SSRF URL validation preserved on categories; XSS-safe rendering; JWT still enforced on all /api/* except /api/health"
+  quality: "ruff/pytest (api), terraform fmt/validate/checkov (infra), npm lint/test/build (web) all green before handoff"
+
+affected_repos:
+  - repo: "word-game-api"
+    scope: "remove enable_cross_partition_query; add unauth /api/health + middleware exemption; categories container config->category_config; align dashboard/active-users response with contract"
+  - repo: "word-game-infra"
+    scope: "provision name_reservations Cosmos container (/id); remove NSG deny-internet-inbound rule"
+  - repo: "word-game-web"
+    scope: "health check -> /api/health; dashboard field games_played; categories -> websites model; full UI overhaul (design system across all screens)"

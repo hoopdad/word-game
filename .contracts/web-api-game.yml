@@ -17,6 +17,18 @@ endpoints:
   - method: "GET"
     path: "/health"
     auth: false
+    description: "Container liveness/readiness probe (not routed through the WAF)."
+    request: {}
+    response:
+      200: { status: "string" }
+
+  - method: "GET"
+    path: "/api/health"
+    auth: false
+    description: >
+      WAF-reachable, UNAUTHENTICATED health probe used by the SPA landing page. The WAF proxies
+      /api/* to the api, and JWTMiddleware MUST exempt exactly this path. Everything else under
+      /api/* still requires a valid bearer token.
     request: {}
     response:
       200: { status: "string" }
@@ -116,10 +128,10 @@ endpoints:
 
   - method: "GET"
     path: "/api/users/active"
-    description: "All currently-active users (presence-backed)."
+    description: "All currently-active users (presence-backed). Field name is active_users (not users)."
     request: {}
     response:
-      200: { users: "array" }   # [{ player_id, display_name }]
+      200: { active_users: "array", count: "integer" }   # active_users: [{ player_id, display_name }]
       401: { error: "string" }
 
   - method: "GET"
@@ -134,9 +146,9 @@ endpoints:
     path: "/api/categories/config"
     description: "Update the website list. Saving must NOT block the user (async persistence)."
     request:
-      websites: { type: "array", required: true }   # [string] URLs (validated: http/https only)
+      websites: { type: "array", required: true }   # [string] URLs (validated: http/https only, SSRF-safe)
     response:
-      200: { websites: "array", saved: "boolean" }
+      200: { websites: "array", status: "string" }   # status: "accepted" (async persistence)
       422: { error: "string", field: "string" }
       401: { error: "string" }
 
