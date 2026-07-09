@@ -217,3 +217,47 @@ KEY CONCLUSIONS:
 - child-agent-runner MCP transport DEAD (Transport closed) — dispatched via the framework's own
   _start_child_agent_job worker (job 20260709T152122-6a5dcaa981); heartbeat/logs under
   .metrics/child-agent-runner/. repo-index + usage MCP servers were healthy.
+
+## r3 LIVE-BUGS RELEASE — DIAGNOSIS + RED TEAM (2026-07-09)
+Owner tested deployed private-WAF env with two real Entra users; reported 3 defects. Diagnosed
+management-plane-only (VPN/data-plane down; LA workspace NSP-private/unreachable; join-500 server
+traceback could NOT be captured live — console ring buffer is dominated by GET /api/game/players
+polling so the historical 500 rolled out before capture). Requirement: .requirements/r3-live-bugs.yml.
+
+- **Bug (a) double-login redirect** — ROOT CAUSE CONFIRMED (web/MSAL). AuthStatus loginPopup().then()
+  imperatively navigate('/dashboard'); NO active account is ever set (main.tsx has no setActiveAccount
+  and no LOGIN_SUCCESS event callback). AuthGuard's useIsAuthenticated() has not re-rendered true when
+  navigate runs → <Navigate to="/"> bounces first login to landing. Second login: account cached →
+  isAuthenticated true immediately → dashboard. Fix: set active account (main.tsx event callback +
+  AuthStatus post-login), reliable first-login nav. Files: main.tsx, AuthStatus.tsx.
+- **Bug (b) "External Users not add-able"** — SAME ROOT CAUSE AS (a). A user becomes add-able (active)
+  only after users._upsert_user() runs, which fires on GET /api/me at dashboard mount. Bug (a) bounces
+  first login off the dashboard → /api/me never fires → last_seen_ts never set → absent from
+  GET /api/users/active. Fixing (a) fixes (b). No "invite external user" feature exists in code; if the
+  owner means Entra External ID guest self-service onboarding, that is a separate Entra item to confirm
+  next VPN session.
+- **Bug (c) join 500** — NOT root-caused to a line (no traceback). Evidence it is an UNCAUGHT APP
+  exception, not routing (would be 404/405/502) and not RBAC: GET /api/game/players returns 200, and
+  get_game()'s read_item would 500 on a 403 (it catches only CosmosResourceNotFoundError) — so read
+  RBAC works and the infra-granted Cosmos Built-in Data Contributor role (role_assignments.tf:20)
+  covers writes too. join_game catches only CosmosResourceNotFoundError (users read) and
+  CosmosAccessConditionFailedError (save_game); any other exception → opaque 500. Fix DEFENSIVELY +
+  OBSERVABLY (api): structured logger.exception(correlation_id) on every game write endpoint so the
+  traceback lands in console logs I can read via control plane next VPN session; broaden the users-read
+  except to CosmosHttpResponseError; harden save_game (missing-_etag fallback) + game.get("players",[]).
+
+### Red team (r3)
+- SECURITY: 500 bodies must carry only a correlation id — never leak stack traces/internals. JWT still
+  enforced on all /api/* except the exact /api/health path (do not widen the exemption). No secrets in
+  logs (correlation id + exception type/message only; do not log tokens or PII).
+- REGRESSION: broadening the users-read except must NOT swallow real bugs silently — it logs at WARNING
+  and proceeds with display_name=None (cached-name miss is non-fatal). save_game unconditional-replace
+  fallback only when _etag is absent (race branch) — must not weaken optimistic concurrency on the
+  normal path (single-active-game race protection stays intact).
+- MSAL: keep popup-only (never acquireTokenRedirect — stored memory: redirect causes infinite reload
+  loops from useEffect). Setting the active account must be idempotent and must not break sign-out
+  (logoutPopup should clear the active account).
+- CONTRACTS: no request/response shape changes → web-api-game / auth-entra contracts unchanged; no
+  infra change; agent/waf untouched.
+- DATA PLANE: actual azd/ACR deploy + E2E DEFERRED to owner's next VPN session (ACR push needs VPN).
+  Release delivers code + critic PASS + pre-deploy gate (commit/push/tag) only.

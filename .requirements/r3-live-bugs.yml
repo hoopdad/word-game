@@ -1,0 +1,110 @@
+feature: "r3-live-bugs"
+context: >
+  Third release. Product owner tested the deployed private-WAF environment with two real
+  Entra users and reported three defects. Diagnosed from source + az container-app console
+  logs (management-plane only; VPN/data-plane unavailable this session, so the join-500
+  server traceback could NOT be captured live — Log Analytics is NSP-private and unreachable
+  from a public IP, and the console ring buffer is dominated by GET /api/game/players polling
+  so the historical 500 rolled out before capture):
+
+    1. Double-login redirect: the FIRST sign-in lands back on the landing page; a SECOND
+       sign-in reaches the dashboard. Root cause (web/MSAL): after loginPopup() resolves,
+       AuthStatus imperatively calls navigate('/dashboard'), but no active account is ever set
+       (main.tsx never calls setActiveAccount and registers no LOGIN_SUCCESS event callback).
+       The MsalProvider's isAuthenticated state has not re-rendered by the time navigate runs,
+       so AuthGuard on /dashboard sees isAuthenticated=false and <Navigate to="/"> bounces the
+       user to the landing page. On the second sign-in the account is already cached, so
+       useIsAuthenticated() is true immediately and the dashboard renders.
+
+    2. "External Users not add-able": users who have signed in do not appear as add-able
+       active players to other players. SAME ROOT CAUSE AS (1): a user becomes "active"
+       (add-able) only after an authenticated call runs users._upsert_user() — which happens
+       on GET /api/me when the dashboard mounts. Because bug (1) bounces the first login back
+       to the landing page, GET /api/me never fires, presence (last_seen_ts) is never recorded,
+       and the user is absent from GET /api/users/active. Fixing (1) so the first login reliably
+       reaches the dashboard fixes (2). Web must also register presence reliably on the first
+       authenticated render. NOTE: there is NO "invite external user" feature in code — if the
+       owner instead means Entra External ID guest/self-service sign-up onboarding, that is a
+       separate Entra-config item to confirm with the owner next VPN session; the app-side
+       presence fix is the concrete deliverable here.
+
+    3. Starting a game with two same-tenant players returns 500 on POST /api/game/join
+       ("Could not join: Join game failed: 500"). Evidence: GET /api/game/players returns 200
+       (reads succeed — and get_game() would 500 on an RBAC/403 read, so Cosmos read RBAC and
+       therefore the Data Contributor write role are both in force), so the 500 is an UNCAUGHT
+       APPLICATION exception on the write path, not routing (would be 404/405/502) and not
+       data-plane RBAC. join_game currently catches only CosmosResourceNotFoundError on the
+       users read and only CosmosAccessConditionFailedError on save_game; any other exception
+       (e.g. CosmosHttpResponseError, a KeyError on game["players"] from a stale-schema
+       singleton, or a save_game replace with a missing _etag) surfaces as an opaque 500 with
+       no diagnostic. The exact throwing line cannot be confirmed without the traceback.
+
+decisions:
+  - id: "join-500-defensive-plus-observability"
+    decision: >
+      Because the data plane is unreachable this session, the join-500 root line cannot be
+      confirmed by traceback. Fix defensively AND make the cause self-evident next VPN session:
+      (a) add structured exception logging (logger.exception with a short correlation id) around
+      every game WRITE endpoint so the full Python traceback lands in the console logs the
+      orchestrator CAN read via the control plane; (b) broaden the join users-read except from
+      CosmosResourceNotFoundError to also handle CosmosHttpResponseError (treat as "no cached
+      name", never 500); (c) harden the write path against latent bugs (guard game.get("players",
+      []) instead of game["players"]; ensure save_game handles a document with no _etag by
+      falling back to an unconditional replace, which create_or_get_game's race branch can
+      produce). The 500 response body must carry the correlation id but never leak internals.
+  - id: "msal-active-account"
+    decision: >
+      Fix the login race the standard MSAL-React way: in main.tsx after initialize(), set the
+      active account from cache if present and register an addEventCallback that calls
+      setActiveAccount on LOGIN_SUCCESS; in AuthStatus, set the active account from the
+      loginPopup result before navigating. Keep popup-only flows (never redirect) per the
+      existing convention and the stored MSAL memory. Do not put navigation logic that depends
+      on a not-yet-propagated isAuthenticated in the popup .then callback without first setting
+      the active account.
+
+acceptance:
+  - scenario: "First sign-in reaches the dashboard"
+    given: "a signed-out user on the landing page"
+    when: "they sign in via the popup for the FIRST time"
+    then: "they land on /dashboard (or /welcome if no display name yet) on the first attempt — never bounced back to the landing page"
+
+  - scenario: "Active account is set after login"
+    given: "a user who has just completed loginPopup"
+    when: "the app queries the MSAL instance"
+    then: "instance.getActiveAccount() returns the signed-in account, and acquireTokenSilent succeeds without falling back to a popup"
+
+  - scenario: "Signed-in users are add-able active players"
+    given: "two users who have each signed in and reached the dashboard"
+    when: "either opens the player/lobby list (GET /api/users/active)"
+    then: "the other signed-in user appears as an add-able active player (presence recorded via GET /api/me on first authenticated render)"
+
+  - scenario: "Join succeeds for two players"
+    given: "two authenticated players in the waiting state"
+    when: "each POSTs /api/game/join (no body)"
+    then: "each returns 200 with {joined:true|false}; neither returns 500; the second player is appended to the singleton game"
+
+  - scenario: "Join surfaces a diagnosable error instead of an opaque 500"
+    given: "an authenticated player whose join triggers an unexpected server exception"
+    when: "POST /api/game/join raises inside the handler"
+    then: "the API logs the full traceback with a correlation id at ERROR level (visible in container console logs) and returns 500 {error, correlation_id} without leaking internals"
+
+  - scenario: "Users read never 500s the join"
+    given: "an authenticated player whose users-container read raises a non-NotFound Cosmos error"
+    when: "join_game resolves the display name"
+    then: "the error is treated as 'no cached display name' (display_name stays null), the join proceeds, and no 500 is raised from the read"
+
+nfr:
+  latency: "join < 500ms server-side under normal Cosmos latency"
+  security: "JWT still enforced on all /api/* except /api/health; 500 bodies must not leak stack traces or internals (correlation id only); no secrets in logs or source"
+  quality: "ruff/pytest (api), npm lint/test/build (web) all green before handoff; new tests cover the join defensive paths and the MSAL active-account behaviour"
+  observability: "every game write endpoint logs uncaught exceptions via logger.exception with a correlation id"
+
+affected_repos:
+  - repo: "word-game-web"
+    scope: "set MSAL active account (main.tsx event callback + AuthStatus post-login); make first-login navigation to /dashboard reliable; ensure presence is registered on first authenticated render so signed-in users are add-able"
+  - repo: "word-game-api"
+    scope: "defensive exception handling + structured traceback logging (correlation id) on game write endpoints (join/start/clue/guess/leave); broaden join users-read except to CosmosHttpResponseError; harden save_game/create_or_get_game write path (players guard, missing _etag fallback)"
+
+deferred:
+  - "Actual azd/ACR deploy of the r3 images is DEFERRED to the owner's next VPN session (ACR push and data-plane E2E require VPN). This release delivers code + critic PASS + pre-deploy gate (commit/push/tag) only."
+  - "Confirm with the owner whether 'External Users not add-able' also implies an Entra External ID guest/self-service sign-up onboarding requirement beyond in-app presence."
