@@ -69,3 +69,31 @@ One line per decision. Append only. Format: `YYYY-MM-DD | category: decision`
 - OPEN (needs @hoopdad): (1) confirm real Azure provision+deploy now (cost, correct sub/tenant, VPN);
   (2) Entra auth model (personal-MSA /common vs Entra External ID); (3) pre-deploy gate push target
   (push to main vs PR flow). Child repos: web is not yet a git repo; others have no origin remote.
+
+## Sprint 4b — Private WAF re-networking + deploy (2026-07-09)
+- DECISION (product-owner directive): WAF must be PRIVATE. Chose internal Container Apps
+  Environment (`internal_load_balancer_enabled=true`) fronted by a hub-and-spoke topology rather
+  than a public CAE. The `word-game-waf` app keeps `external` ingress, but on an internal CAE that
+  resolves to the private LB IP (10.0.13.193) — reachable only over VNet/VPN. web/api/agent are
+  internal-only (`.internal.` FQDNs).
+- DECISION: re-CIDR the spoke VNet from the non-routable 10.1.x.x block to routable **10.0.12.0/22**
+  (hub 10.0.0.0/22; existing spokes at 10.0.7/24, 10.0.11/24, 10.0.40/22 — 10.0.12.0/22 free) so it
+  can peer with the existing hub `mikeo-lab-hub-vnet` (sub 0ff111e2, rg mikeo-lab-rg). Subnets:
+  cae 10.0.12.0/23, pe 10.0.14.0/24, ingress 10.0.15.0/25, reserved 10.0.15.128/25.
+- DECISION: private DNS zones live in the HUB only (linked to the spoke), none in the spoke — avoids
+  duplicate-zone/link conflicts and centralises resolution. Cosmos/KV PE zone-groups point at the
+  hub zone IDs via `cosmos_private_dns_zone_id` / `keyvault_private_dns_zone_id` var defaults.
+- PATTERN: internal-CAE app FQDNs do NOT resolve via the generic `privatelink.azurecontainerapps.io`
+  zone. Each internal CAE has a unique default domain; created a hub private DNS zone named exactly
+  that domain (`victoriousdesert-ca89600e.centralus.azurecontainerapps.io`) with a wildcard `*` A →
+  CAE staticIp, linked to hub + spoke. This is what makes `word-game-waf.<domain>` resolve over VPN.
+- PATTERN: gateway-transit bootstrap ordering solved with `spoke_use_remote_gateways` var — apply
+  spoke→hub peering with `=false` first, create hub→spoke peering (`allow_gateway_transit=true`),
+  then flip to `true`. TF default is now `true` so steady-state `azd up` is idempotent.
+- GOTCHA: can't change VNet/subnet address ranges in-place while PEs hold old IPs → targeted destroy
+  of the network layer (PEs+subnets+NSG assoc+VNet), then apply. Cosmos/Foundry/ACR/KV/UAMI accounts
+  are not IP-bound and were preserved (no data loss).
+- GOTCHA: `ManagedEnvironmentCapacityHeavyUsageError` (centralus AKS capacity) is transient — delete
+  the Failed CAE (ScheduledForDelete ~3min), then retry apply. User requires Central US.
+- STATUS: all 4 apps Succeeded/Running (min-replicas=1); infra pushed be00d95 + tagged v0.4.0.
+  App/data-plane E2E deferred until VPN restored (user disabled VPN 2026-07-09).
