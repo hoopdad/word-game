@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: word-game
+metadata:
+  template: word-game-fleet@0.3.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# word-game is deployed with a script-driven flow (NOT azd-native services),
+# because images are built with `az acr build` and the four Container Apps are
+# created/updated directly against an internal Container Apps Environment that
+# Terraform provisions in the sibling repo ../word-game-infra.
+#
+# Executors (source of truth):
+#   Full deploy     :  bash scripts/azd-deploy.sh          (or:  azd up)
+#   Infra only      :  bash scripts/azd-deploy.sh  (SKIP_PROVISION=0, no service filter)
+#   Services only   :  SKIP_PROVISION=1 bash scripts/azd-deploy.sh [api|agent|web|waf]
+#   Entra setup     :  bash scripts/setup-entra.sh
+#   Verify          :  bash scripts/verify-deploy.sh
+#
+# The hooks below route `azd provision` / `azd deploy` / `azd up` through the
+# same scripts so either entrypoint produces an identical result.
+# ─────────────────────────────────────────────────────────────────────────────
+
+infra:
+  provider: terraform
+  path: ../word-game-infra
+
+hooks:
+  preprovision:
+    posix:
+      shell: sh
+      run: bash ./scripts/setup-entra.sh
+  postprovision:
+    posix:
+      shell: sh
+      run: SKIP_PROVISION=1 bash ./scripts/azd-deploy.sh all
+  postdeploy:
+    posix:
+      shell: sh
+      run: bash ./scripts/verify-deploy.sh
+
+# Reference topology (informational — apps are created by scripts/azd-deploy.sh):
+#   word-game-waf    external ingress  :8080   public entry (min-replicas 1)
+#   word-game-web    internal ingress  :80     React SPA
+#   word-game-api    internal ingress  :8000   FastAPI (REST + /ws/game)
+#   word-game-agent  internal ingress  :8000   Foundry category/analysis agent

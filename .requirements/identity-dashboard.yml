@@ -1,0 +1,44 @@
+feature: "identity-dashboard"
+context: "Sprint 2 — end-user identity (Entra External ID) and the pre-game dashboard. Users sign up/sign in, pass the display-name gate (unique, well-formed), and land on a dashboard showing active users, total games played, and leaderboards. Backend persists everything to Cosmos."
+
+acceptance:
+  - scenario: "Sign in with Entra External ID"
+    given: "an anonymous visitor"
+    when: "they use the MSAL PKCE popup flow"
+    then: "they authenticate against Entra External ID (CIAM), tokens are stored in sessionStorage, and the SPA holds an access token with scope access_as_user; redirectUri is window.location.origin + '/welcome'."
+
+  - scenario: "Server-side token validation"
+    given: "any /api/* request"
+    when: "the API receives it"
+    then: "the API validates issuer, audience, expiry, not-before, and the access_as_user scope; missing/expired/invalid tokens are rejected with 401; users are identified by the stable 'sub' claim, never email."
+
+  - scenario: "Display-name gate — uniqueness + format"
+    given: "a first-time authenticated user with no display name"
+    when: "they submit a display name"
+    then: "a badly-formatted name (not short alphanumeric) returns 422 {error, field} with a clear 'malformed' message; a well-formed but already-taken name returns 409 with 'that name is taken'; a unique well-formed name is saved to Cosmos (users container) and they reach the dashboard."
+
+  - scenario: "Change display name later"
+    given: "a registered user on the profile screen"
+    when: "they change their display name under the same rules"
+    then: "the same 422/409/success semantics apply and the new name persists to Cosmos."
+
+  - scenario: "Dashboard contents"
+    given: "an authenticated user with a display name"
+    when: "they view the dashboard"
+    then: "it shows the list of all currently active users (kept current as people come/go), the total count of all games ever played, the top 10 all-time scorers, and the top 3 scorers today, plus a Start game button, a Configure categories link, and access to the profile screen."
+
+  - scenario: "Presence"
+    given: "active users"
+    when: "a user goes idle or leaves"
+    then: "presence is tracked durably in Cosmos with an inactivity TTL (~600s) and periodic sweep (~30s); the dashboard refreshes the active-user list (~30s poll) so it stays current."
+
+nfr:
+  latency: "dashboard data endpoints < 300ms p95"
+  security: "JWT validated server-side; sub-claim identity; CORS restricted to known origins; no XSS in rendered names"
+  data: "users, presence, scores, games-count all durable in Cosmos (no in-memory)"
+
+affected_repos:
+  - repo: "word-game-api"
+    scope: "JWT auth middleware; users store; name uniqueness (422 vs 409); presence TTL+sweep; games-count; leaderboards (top10 all-time, top3 today); profile update; endpoints for dashboard data."
+  - repo: "word-game-web"
+    scope: "MSAL login; name-gate screen (taken vs malformed messaging); dashboard (active users, games count, leaderboards, buttons/links); profile page."

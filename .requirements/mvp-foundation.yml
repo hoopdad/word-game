@@ -1,0 +1,46 @@
+feature: "mvp-foundation"
+context: "Sprint 1 — establish the deployable foundation across all five repos: infra platform, service skeletons with health/version, and the WAF ingress. Everything must build, lint, test, and be containerized (non-root, multi-stage) so later sprints add game behavior on a working base."
+
+acceptance:
+  - scenario: "Infra provisions the core platform as code (AVM-first)"
+    given: "A greenfield word-game-infra repo"
+    when: "terraform validate runs and (later) azd provision applies"
+    then: "Spoke VNet + zero-trust NSG subnets (ingress, container-apps, private-endpoints, reserved); ACR; Cosmos DB serverless (Session) with containers users(/id), games(/id), scores(/userId), category_config(/id); Key Vault; Log Analytics; Container App Environment (internal/private); user-assigned managed identity with AcrPull + KV Secrets User + Cosmos SQL Data Contributor; Azure AI Foundry account + GPT-4.1-mini model deployment (GlobalStandard, centralus). Private endpoints for Cosmos/KV/ACR linked to HUB private DNS zones (none created in spoke). All required outputs exposed."
+
+  - scenario: "Each service exposes health and version"
+    given: "word-game-api, word-game-agent, word-game-web"
+    when: "the container runs"
+    then: "GET /health (api), GET /agent/health (agent) return 200 unauthenticated; GET /version returns {version:'0.1.0', ...}; the web page shows version 0.1.0 next to the app name."
+
+  - scenario: "Containers are production-shaped"
+    given: "each service Dockerfile"
+    when: "the image is built"
+    then: "multi-stage build, runs as a non-root user, and starts cleanly."
+
+  - scenario: "WAF routes ingress to backends with OWASP CRS"
+    given: "word-game-waf"
+    when: "nginx -t validates and the container runs"
+    then: "listens on 443 (TLS), routes /*->web:80, /api/*+/ws/*->api:8000, /agent/*->agent:8000; OWASP CRS active blocking Top 10; rule 911100 excluded for /api/*; WS upgrade allowed; map_hash_bucket_size=128; GET /health works."
+
+  - scenario: "Local quality gates pass"
+    given: "each repo"
+    when: "the repo's validate command runs"
+    then: "lint + unit tests + build pass (ruff+pytest for python, npm lint+test+build for web, terraform fmt+validate for infra, nginx -t for waf)."
+
+nfr:
+  latency: "health/version < 200ms"
+  security: "non-root containers; no secrets in source; private-by-default networking; managed identity for Azure access"
+  coverage: ">=80% for api/agent/web unit tests where meaningful"
+  availability: "web+waf min_replicas=1"
+
+affected_repos:
+  - repo: "word-game-infra"
+    scope: "Full Terraform platform (network, ACR, Cosmos, KV, LAW, CAE, UAMI, Foundry+model)."
+  - repo: "word-game-api"
+    scope: "FastAPI skeleton: /health, /version, config, Cosmos client scaffold, Dockerfile."
+  - repo: "word-game-agent"
+    scope: "Agent Framework skeleton: /agent/health, /version, Foundry client scaffold, Dockerfile."
+  - repo: "word-game-web"
+    scope: "React SPA shell: MSAL config scaffold, version display, health check, nginx Dockerfile."
+  - repo: "word-game-waf"
+    scope: "nginx + ModSecurity OWASP CRS routing to the three backends."

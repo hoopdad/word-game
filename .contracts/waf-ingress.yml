@@ -1,0 +1,39 @@
+# BOOTSTRAP contract — derived from .copilot/topology.md "Request Flow (User -> WAF -> Services)".
+# The WAF is the single public entry point (Public IP, OWASP CRS via ModSecurity) and
+# reverse-proxies to the three backend Container Apps. This is the ingress/routing contract
+# every backend depends on for path, port, and method expectations.
+name: "waf-ingress"
+type: "Gateway"
+provider: "word-game-waf"
+consumers:
+  - "word-game-web"
+  - "word-game-api"
+  - "word-game-agent"
+listen: "443 (TLS)"
+security: "OWASP Core Rule Set via ModSecurity"
+constraints:
+  - "min_replicas = 1 (public entry point must never scale to zero)"
+  - "CRS rule 911100 excluded for /api/* so PUT/PATCH/DELETE are allowed"
+  - "nginx map_hash_bucket_size = 128 (long ACA FQDNs)"
+routes:
+  - match: "/*"
+    methods: ["GET"]
+    upstream: "word-game-web"
+    upstream_port: 80
+    description: "SPA static assets and client-side routes"
+  - match: "/api/*"
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    upstream: "word-game-api"
+    upstream_port: 8000
+    description: "REST game API"
+  - match: "/ws/*"
+    methods: ["GET"]
+    upgrade: "websocket"
+    upstream: "word-game-api"
+    upstream_port: 8000
+    description: "WebSocket real-time game channel"
+  - match: "/agent/*"
+    methods: ["POST"]
+    upstream: "word-game-agent"
+    upstream_port: 8000
+    description: "AI agent analysis/decision endpoints"

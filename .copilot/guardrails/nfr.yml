@@ -1,0 +1,101 @@
+# Non-Functional Requirements for azure-fullstack pattern
+
+# Canonical source: standards/nfr.yml
+# These NFRs apply to all projects using the azure-fullstack pattern.
+# Override in your project's init.yml if needed.
+
+---
+security:
+  authentication:
+    - All user-facing endpoints require Entra External ID (CIAM)
+    - Validate JWT tokens server-side: check issuer, audience, expiry, scopes
+    - Use managed identities for service-to-service communication
+    - Reject requests with missing/expired/malformed tokens with 401
+
+  secrets:
+    - Store secrets in Azure Key Vault; access via managed identity only
+    - Use RBAC (Key Vault Secrets User), not access policies
+
+  network:
+    - All resources on private VNet; public endpoints only for designated ingress
+    - Use private endpoints for Cosmos DB, Key Vault, ACR, Storage
+    - Deploy WAF (e.g., ModSecurity + Caddy/Nginx) on ingress subnet
+    - NSGs on every subnet; deny all inbound by default, allow only required flows
+
+  scanning:
+    - Run Semgrep on every commit for all languages
+    - Run Bandit on Python code (severity medium+)
+    - Run Checkov on Terraform code
+    - Scan Docker images with Trivy before push — fail on HIGH/CRITICAL
+
+  owasp:
+    - Validate and sanitize all user inputs at API boundary
+    - Use parameterized queries; no string concatenation
+    - Set security headers: CSP, X-Frame-Options, HSTS
+    - Rate limit all public endpoints
+
+networking:
+  topology:
+    - Single VNet with subnets: ingress, container-apps, private-endpoints, reserved
+    - Address space: /16 minimum; subnets per Azure recommendations
+
+cost:
+  general:
+    - Prefer consumption/serverless: Cosmos DB serverless, ACA consumption plan
+    - Right-size Container App resources: start with 0.25 vCPU/0.5 Gi memory
+    - Enable scale-to-zero on Container Apps (min replicas: 0 for non-prod)
+
+devops:
+  deployment_model:
+    - Local Azure Developer CLI (`azd up`) from the harness repo — NO GitHub Actions pipelines
+    - Infrastructure applied via `azd provision` (Terraform with local state)
+    - Services deployed via `bash scripts/azd-deploy.sh`; images built with `az acr build`
+
+  ci:
+    - Local validation gates run before commit: lint, security scan, unit tests (all must pass)
+    - Each specialist→critic iteration is exactly one commit
+
+  cd:
+    - Before any deploy, every repo MUST be committed, pushed, and version-tagged
+      (orchestrator runs `scripts/predeploy-gate.sh`)
+    - Authenticate to Azure with the developer's `az login` / managed identity (no OIDC federation)
+    - Container apps pull images from ACR via user-assigned managed identity (AcrPull)
+
+  branching:
+    - Trunk-based: main is the only long-lived branch
+    - Feature branches merge via PR after local validation + critic PASS
+
+  containers:
+    - All services deploy as Docker containers with multi-stage builds
+    - Run as non-root in production
+    - Minimum 1 running instance per service in production
+
+known_exceptions:
+  - ACR public_network_access_enabled=true is required for local `az acr build`
+    (documented exception to the private-endpoints-only rule)
+  - WAF Container App uses min_replicas=1 (no scale-to-zero) as the public entry point
+  - VNet uses native azurerm_virtual_network (not AVM) to avoid perpetual drift with delegated subnets
+
+region:
+  - Deploy all regional Azure resources to the configured region (default: centralus)
+
+
+testing:
+  unit:
+    - Minimum 80% code coverage target for API and services
+    - pytest for Python; vitest for React
+  integration:
+    - Playwright for end-to-end browser testing
+    - Integration tests validate full request flow
+
+architecture:
+  data:
+    - Cosmos DB NoSQL (serverless) as primary data store
+    - Session consistency level; partition key design must support query patterns
+  compute:
+    - Azure Container Apps for all services
+    - ACR for container image registry
+  identity:
+    - Entra External ID for end-user authentication
+    - Use MSAL.js with PKCE auth flow; tokens in sessionStorage
+    - Profile creation on first authenticated visit (use sub claim as user ID)
