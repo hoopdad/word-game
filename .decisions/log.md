@@ -201,3 +201,19 @@ KEY CONCLUSIONS:
 - OPEN (separate, tracked in plan.md Sprint 4b incident): the NSG `deny-internet-inbound` rule the
   owner manually deleted for VPN reach is still in TF and will re-add on next apply — durable fix is
   an explicit allow for the VPN client range at priority <100 (folded into the same work item).
+
+## r2b DRIFT REMEDIATION — DONE & VERIFIED (2026-07-09) ✅
+- Owner confirmed no deletion needed (choice=none_codify); proceeded with config-only fixes.
+- Infra specialist implemented all 4 TF edits; critic PASS (all 5 tiers). Commits: 6d2464d (fix),
+  ef86eee (critic PASS move-to-done). Item in word-game-infra/work/done/r2b-drift-remediation.md.
+- ORCHESTRATOR INDEPENDENT VERIFY: `terraform fmt -check` OK, `terraform validate` Success,
+  `terraform plan` (refresh vs live) = **"No changes. Your infrastructure matches the configuration."**
+  → the 7 drift lines are GONE, 0 add / 0 change / 0 destroy, NO resource replaced. Confirms the
+  fixes are pure config→live alignment (no-op on live) and future provisions won't un-harden.
+- Pre-deploy gate PASSED: infra v0.4.2, harness v0.1.4 committed+pushed+tagged (waf v0.2.0,
+  web v0.1.1, api v0.1.1, agent v0.1.0 unchanged).
+- NO DEPLOY EXECUTED — plan shows 0 changes and no service image changed, so there is nothing for
+  azd/terraform apply to push. Release value = drift codified away.
+- child-agent-runner MCP transport DEAD (Transport closed) — dispatched via the framework's own
+  _start_child_agent_job worker (job 20260709T152122-6a5dcaa981); heartbeat/logs under
+  .metrics/child-agent-runner/. repo-index + usage MCP servers were healthy.
