@@ -1,0 +1,6 @@
+subscription_id="f332a08c-417b-4800-bdc9-6da75eb9f750"
+tenant_id="d52a6857-5f44-4f8f-bcc8-420952d3225d"
+hub_subscription_id="0ff111e2-f787-4beb-900b-01bc2c83aec2"
+hub_resource_group_name="mikeo-lab-rg"
+hub_vnet_name="mikeo-lab-hub-vnet"
+hub_law_name="mikeo-lab-hub-law"

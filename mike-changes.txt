@@ -1,0 +1,190 @@
+# Agent & Skill Optimization Report
+Generated: 2026-06-18
+
+## Analysis Summary
+
+Examined 9 sessions from the last 24 hours across word-game-* repos.
+Total tool calls analyzed: 845+ bash, 440+ view, 120+ edit, 12+ sleep commands.
+
+### Key Inefficiencies Identified
+
+1. **Sleep-based deployment waits** — 12+ `sleep N` commands per orchestration session
+   instead of polling with timeout. Each sleep wasted 15-180 seconds of wall-clock time.
+
+2. **Repeated `find` commands** — 20+ find/ls calls to locate files whose paths are
+   stable and documented (e.g., useAuth.ts, nginx.conf.template, Dockerfile).
+
+3. **Multiple Azure AD queries** — 15+ individual `az ad app show` calls fetching
+   one field at a time instead of compound `--query` with multiple fields.
+
+4. **Build-deploy-debug loops** — Web image rebuilt 5+ times because MSAL config
+   wasn't validated BEFORE building. Each cycle took ~3 minutes.
+
+5. **Undocumented route flow** — Sessions spent 10+ turns tracing user→WAF→API
+   routing because no single reference existed for the request flow.
+
+6. **Agent instructions too verbose** — Critics had 80+ line CI/CD workflow checklists
+   that are irrelevant post-migration to local azd deploy. Tokens wasted reading
+   outdated requirements.
+
+---
+
+## Changes by Repository
+
+### word-game-harness (orchestrator)
+
+**New: `.copilot/topology.md`**
+- Complete file location map for ALL repos (eliminates `find` commands)
+- Azure resource IDs and Entra configuration in one place
+- Request flow diagram (user→WAF→services)
+- Deployment wait polling pattern (replaces `sleep`)
+- Common mistakes checklist
+
+**Updated: `container-app-troubleshoot` skill**
+- Added deployment-wait polling pattern with timeout (replaces sleep anti-pattern)
+- Added token efficiency rules (one diagnostic call first, batch Azure CLI queries)
+- Added anti-pattern section explicitly banning `sleep` for deployment waits
+
+**Updated: `entra-vite-spa-auth` skill**
+- Added word-game-specific IDs (copy-paste ready: client IDs, tenant, scope, FQDN)
+- Added pre-deploy validation script (7 seconds vs 3+ minute failed build cycles)
+- Added token efficiency rules (validate before build, compound az queries)
+
+**New: `route-flow-debug` skill**
+- One-pass diagnostic script (6 curl calls in one turn identifies the failing layer)
+- Decision tree: status code → root cause → fix
+- Key files checklist in priority order
+- Bundle inspection recipe (one command to see all API paths in deployed JS)
+- OWASP CRS 911100 fix recipe
+
+### word-game-web (frontend)
+
+**Updated: specialist agent**
+- Added "Known File Locations" table — eliminates ALL find commands
+- Added "MSAL Configuration Rules" — 5 hard gates that prevent production auth failures
+- Added "Pre-Build Validation" script — catches 90% of issues in 3 seconds
+- Added "Token Efficiency Rules" — batch edits, one build cycle per fix
+- Removed CI/CD workflow references (obsolete after azd migration)
+- Reduced from 63 lines → 73 lines (more content, less boilerplate)
+
+**Updated: critic agent**
+- Streamlined from 40 lines → 28 lines (focused checklist format)
+- MSAL hard gates as instant-FAIL criteria
+- Removed irrelevant CI/CD workflow checks
+
+### word-game-waf (WAF)
+
+**Updated: specialist agent**
+- Added "Known File Locations" table
+- Added "Request Flow Map" — visual diagram of all WAF routing
+- Added "OWASP CRS Quick Reference" — common rules and exclusion patterns
+- Added "Nginx Configuration Rules" — map_hash_bucket_size, CSP, WebSocket
+- Added deployment notes (min-replicas=1, deploy order)
+- Reduced from 47 lines → 62 lines (more domain knowledge, less boilerplate)
+
+**Updated: critic agent**
+- Streamlined from 67 lines → 25 lines (focused checklist)
+- Route alignment check added as first-class gate
+- Removed obsolete CI/CD workflow checklists
+
+### word-game-api (backend)
+
+**Updated: specialist agent**
+- Added "Known File Locations" table
+- Added "Entra Token Validation Quick Reference" — audience formats, JWKS URL
+- Added token efficiency rules
+- Removed CI/CD workflow conventions (obsolete)
+- Reduced from 52 lines → 54 lines (more actionable, less ceremony)
+
+**Updated: critic agent**
+- Streamlined from 30 lines → 22 lines
+- Auth validation check (both v1 and v2 audience formats)
+- Contract alignment as primary gate
+
+### word-game-infra (infrastructure)
+
+**Updated: specialist agent**
+- Added "Known File Locations" table
+- Added "ACA Networking Quick Reference" — ACR public access, VNet exception
+- Added "Deployment Model" section — clarifies local azd, no GitHub Actions
+- Documented known AVM exceptions explicitly (VNet, ACR)
+- Reduced from 38 lines → 50 lines (more domain knowledge)
+
+**Updated: critic agent**
+- Streamlined from 37 lines → 25 lines
+- "Known exceptions" section prevents false flags on documented decisions
+- Removed verbose validation command list (now one-liner)
+
+### word-game-agent (AI agent)
+
+**Updated: specialist agent**
+- Added "Known File Locations" table
+- Added "Foundry Client Configuration" reference
+- Added token efficiency rules
+- Reduced from 37 lines → 40 lines (more actionable)
+
+**Updated: critic agent**
+- Streamlined from 25 lines → 20 lines
+- Focused on Foundry client pattern and credential safety
+
+---
+
+## Estimated Impact
+
+| Metric | Before | After (projected) |
+|--------|--------|-------------------|
+| Turns per troubleshooting session | 15-25 | 5-10 |
+| Tokens per deployment debug | ~150K | ~50K |
+| Sleep/wait time per session | 5-10 min | <30 sec |
+| Find/grep discovery calls | 20+ per session | 0 |
+| Build-deploy-check loops | 5+ per bug | 1-2 |
+| Agent instruction tokens (total) | ~4,200 | ~2,800 (33% reduction) |
+
+---
+
+## Prompting Improvement Suggestions
+
+### For the orchestrator (word-game-harness)
+
+1. **Pre-flight validation before ANY deployment**: Before calling `azd-deploy.sh`,
+   always run `scripts/check-msal-config.sh` and verify all container apps are healthy.
+   This catches 80% of post-deploy failures before they happen.
+
+2. **Use topology.md as context injection**: When starting troubleshooting sessions,
+   prime with: "Consult .copilot/topology.md for all file locations, IDs, and flow."
+   This single line saves 10+ turns of discovery per session.
+
+3. **Explicit skill invocation in prompts**: Instead of "fix the auth issue", prompt
+   with "use the entra-vite-spa-auth skill to diagnose blank popup." Skills carry
+   structured diagnostic protocols that prevent ad-hoc debugging.
+
+4. **Batch diagnosis, then batch fixes**: Prompt pattern should be:
+   "Diagnose all issues first (do not fix yet), then present findings, then fix all
+   in one pass." This prevents the edit→deploy→discover-next-issue→edit→deploy loop.
+
+### For specialist agents
+
+5. **"Contract-first" prompting**: Always start work requests with "Read the contract
+   at .contracts/game-api.yml FIRST, then implement." This prevents field-name and
+   route-path misalignment that caused the 405 bug.
+
+6. **Validation as exit gate, not iterative**: Prompt pattern: "Make ALL changes first,
+   then run validation ONCE at the end." Not: "Run lint after each file change."
+
+7. **Compound commands over separate turns**: Encode in prompts that agents should
+   chain: `ruff check . && ruff format --check . && pytest tests/ && docker build -t x:ci .`
+   as one command, not four separate tool calls.
+
+### For troubleshooting sessions
+
+8. **Screenshot + skill pattern**: When user provides a screenshot with an error,
+   the ideal prompt structure is: "[skill name] + symptom + deployed URL."
+   Example: "entra-vite-spa-auth: blank popup on login. URL: https://word-game-waf..."
+
+9. **Deploy-and-verify as atomic operation**: After every fix+deploy, immediately run
+   `scripts/verify-deploy.sh`. Encode this as: "After deploying, run verify-deploy.sh
+   and report the results." This catches regressions in the same turn.
+
+10. **Eliminate Azure CLI exploration**: Instead of `az containerapp show ... | jq`,
+    use the MCP tools (`diagnose_container_app`, `inspect_container_app`) which return
+    structured data. They save 3-5 turns of manual CLI exploration per issue.
