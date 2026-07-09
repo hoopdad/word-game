@@ -176,6 +176,7 @@ if should waf; then
   acr_build word-game-waf "$WAF_DIR"
   deploy_app word-game-waf word-game-waf 8080 true \
     "BACKEND_WEB=word-game-web:80" "BACKEND_API=word-game-api:80" "BACKEND_AGENT=word-game-agent:80" \
+    "BACKEND_WEB_HOST=word-game-web" "BACKEND_API_HOST=word-game-api" "BACKEND_AGENT_HOST=word-game-agent" \
     "PORT=8080" "MODSEC_RULE_ENGINE=On" "PARANOIA=1"
   wait_running word-game-waf
 fi
